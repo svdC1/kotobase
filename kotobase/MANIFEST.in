@@ -1,0 +1,4 @@
+graft db_builder/data
+graft db_builder/data/processed
+graft db_builder/data/processed/jlpt
+include db/kotobase.db

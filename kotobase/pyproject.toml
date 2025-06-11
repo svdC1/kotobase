@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kotobase"
+version = "0.1.0"
+authors = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
+maintainers = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
+description = "Python package for accessing a comprehensive Japanese language database."
+keywords = ["Japanese", "Dictionary", "Language"]
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+    "requests",
+    "sqlalchemy",
+    "alembic",
+    "beautifulsoup4",
+    "lxml",
+    "pypdf",
+    "click",
+]
+
+[project.scripts]
+kotobase = "kotobase.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/svdC1/kotobase"
+Issues = "https://github.com/svdC1/kotobase/issues"
+
+[tool.setuptools]
+include-package-data = true
+[tool.setuptools.packages.find]
+where = ["src"]
