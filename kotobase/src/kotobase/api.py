@@ -1,11 +1,17 @@
 from kotobase.db.database import get_db
-from kotobase.db.models import (
-    JMDictEntry, JMDictKanji, JMDictKana, 
-    JMnedictEntry, Kanjidic, TatoebaSentence, 
-    JlptVocab, JlptKanji, JlptGrammar
-)
+from kotobase.db.models import (JMDictEntry,
+                                JMDictKanji,
+                                JMDictKana,
+                                JMnedictEntry,
+                                Kanjidic,
+                                TatoebaSentence,
+                                JlptVocab,
+                                JlptKanji,
+                                JlptGrammar
+                                )
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
+
 
 class Kotobase:
     """
@@ -32,20 +38,24 @@ class Kotobase:
             joinedload(JMDictEntry.senses)
         )
 
-        results = query_obj.join(JMDictEntry.kanji, isouter=True).join(JMDictEntry.kana, isouter=True).filter(
+        results = query_obj.join(
+            JMDictEntry.kanji,
+            isouter=True).join(JMDictEntry.kana,
+                               isouter=True).filter(
             or_(
                 JMDictKanji.text == query,
                 JMDictKana.text == query
             )
         ).all()
-        
+
         return results
 
     def find_kanji(self, literal: str):
         """
         Finds a kanji in Kanjidic by its literal character.
         """
-        return self.db.query(Kanjidic).filter(Kanjidic.literal == literal).first()
+        return self.db.query(Kanjidic).filter(
+            Kanjidic.literal == literal).first()
 
     def get_jmdict_entries(self):
         """Returns all entries from JMDict."""
@@ -78,14 +88,15 @@ class Kotobase:
         if not 1 <= level <= 5:
             raise ValueError("JLPT level must be between 1 and 5.")
         return self.db.query(JlptKanji).filter(JlptKanji.level == level).all()
-        
+
     def get_jlpt_grammar(self, level: int):
         """
         Gets the JLPT grammar list for a given level.
         """
         if not 1 <= level <= 5:
             raise ValueError("JLPT level must be between 1 and 5.")
-        return self.db.query(JlptGrammar).filter(JlptGrammar.level == level).all()
+        return self.db.query(JlptGrammar).filter(
+            JlptGrammar.level == level).all()
 
     def lookup_word(self, word: str):
         """
@@ -96,24 +107,29 @@ class Kotobase:
         jmdict_entries = self.find_word(word)
 
         # 2. Get all unique kanji in the word
-        kanji_in_word = list(set([char for char in word if '\u4e00' <= char <= '\u9faf']))
-        
+        kanji_in_word = list(
+            set([char for char in word if '\u4e00' <= char <= '\u9faf']))
+
         # 3. Fetch Kanjidic entries for each kanji
         kanjidic_entries = [self.find_kanji(k) for k in kanji_in_word]
 
         # 4. Find Tatoeba sentences
-        tatoeba_sentences = self.db.query(TatoebaSentence).filter(TatoebaSentence.text.like(f"%{word}%")).all()
+        tatoeba_sentences = self.db.query(TatoebaSentence).filter(
+            TatoebaSentence.text.like(f"%{word}%")).all()
 
         # 5. Determine JLPT vocabulary level
-        jlpt_vocab_entry = self.db.query(JlptVocab).filter(or_(JlptVocab.kanji == word, JlptVocab.hiragana == word)).first()
+        jlpt_vocab_entry = self.db.query(JlptVocab).filter(or_(
+            JlptVocab.kanji == word, JlptVocab.hiragana == word)).first()
         jlpt_vocab_level = jlpt_vocab_entry.level if jlpt_vocab_entry else None
 
         # 6. Find JLPT kanji levels
-        jlpt_kanji_levels = {k.kanji: k.level for k in self.db.query(JlptKanji).filter(JlptKanji.kanji.in_(kanji_in_word)).all()}
+        jlpt_kanji_levels = {k.kanji: k.level for k in self.db.query(
+            JlptKanji).filter(JlptKanji.kanji.in_(kanji_in_word)).all()}
 
         # 7. Find JLPT grammar entries
         grammar_query = word.replace('～', '%')
-        jlpt_grammar_entries = self.db.query(JlptGrammar).filter(JlptGrammar.grammar.like(f"{grammar_query}%")).all()
+        jlpt_grammar_entries = self.db.query(JlptGrammar).filter(
+            JlptGrammar.grammar.like(f"{grammar_query}%")).all()
 
         return {
             "jmdict_entries": jmdict_entries,

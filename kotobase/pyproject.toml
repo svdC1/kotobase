@@ -26,6 +26,7 @@ dependencies = [
     "lxml",
     "pypdf",
     "click",
+    "gdown",
 ]
 
 [project.scripts]

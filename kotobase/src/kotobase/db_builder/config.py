@@ -9,7 +9,8 @@ JMNEDICT_URL = "http://ftp.edrdg.org/pub/Nihongo/JMnedict.xml.gz"
 KANJIDIC2_URL = "http://www.edrdg.org/kanjidic/kanjidic2.xml.gz"
 
 # Tatoeba URL for Japanese sentences
-TATOEBA_URL = "https://downloads.tatoeba.org/exports/per_language/jpn/jpn_sentences.tsv.bz2"
+TATOEBA_URL = "https://downloads.tatoeba.org/exports/per_language/jpn/jpn_s\
+    entences.tsv.bz2"
 
 # Data directory to store raw and processed data
 DATA_DIR = file_dir / "data"
@@ -23,7 +24,7 @@ KANJIDIC2_PATH = PROCESSED_DATA_DIR / "kanjidic.json"
 TATOEBA_PATH = PROCESSED_DATA_DIR / "tatoeba.json"
 JLPT_FOLDER = PROCESSED_DATA_DIR / "jlpt"
 JLPT_PATHS = {
-    "grammar":{
+    "grammar": {
         "n1": JLPT_FOLDER / "grammar_n1.json",
         "n2": JLPT_FOLDER / "grammar_n2.json",
         "n3": JLPT_FOLDER / "grammar_n3.json",
@@ -37,7 +38,7 @@ JLPT_PATHS = {
         "n4": JLPT_FOLDER / "kanji_n4.json",
         "n5": JLPT_FOLDER / "kanji_n5.json"
     },
-    "vocab":{
+    "vocab": {
         "n1": JLPT_FOLDER / "vocab_n1.json",
         "n2": JLPT_FOLDER / "vocab_n2.json",
         "n3": JLPT_FOLDER / "vocab_n3.json",
@@ -47,7 +48,7 @@ JLPT_PATHS = {
     }
 
 # Raw Data Paths
-RAW_JMDICT_PATH = RAW_DATA_DIR / "JMdict_e.xml.gz"
-RAW_JMNEDICT_PATH = RAW_DATA_DIR / "JMnedict.xml.gz"
-RAW_KANJIDIC2_PATH = RAW_DATA_DIR / "kanjidic2.xml.gz"
-RAW_TATOEBA_PATH = RAW_DATA_DIR / "jpn_sentences.tsv.bz2"
+RAW_JMDICT_PATH = RAW_DATA_DIR / "JMdict_e.xml"
+RAW_JMNEDICT_PATH = RAW_DATA_DIR / "JMnedict.xml"
+RAW_KANJIDIC2_PATH = RAW_DATA_DIR / "kanjidic2.xml"
+RAW_TATOEBA_PATH = RAW_DATA_DIR / "jpn_sentences.tsv"

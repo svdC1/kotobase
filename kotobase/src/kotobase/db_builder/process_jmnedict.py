@@ -1,54 +1,131 @@
 import json
-from pathlib import Path
+import click
 from lxml import etree
+from io import BytesIO
 from kotobase.db_builder.config import (RAW_JMNEDICT_PATH, JMNEDICT_PATH)
 
+# XSLT content is embedded directly into the script
+XSLT_TRANSFORM = b"""<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+    <xsl:output method="text" encoding="UTF-8"/>
+    <xsl:strip-space elements="*"/>
+
+    <!-- Define delimiters -->
+    <xsl:variable name="field_sep" select="'|'"/>
+    <xsl:variable name="list_sep" select="'~'"/>
+    <xsl:variable name="trans_sep" select="'^'"/>
+
+    <xsl:template match="/JMnedict">
+        <xsl:apply-templates select="entry"/>
+    </xsl:template>
+
+    <xsl:template match="entry">
+        <!-- Entry ID -->
+        <xsl:value-of select="ent_seq"/>
+        <xsl:value-of select="$field_sep"/>
+
+        <!-- Kanji Elements -->
+        <xsl:for-each select="k_ele">
+            <xsl:value-of select="keb"/>
+            <xsl:if test="position() != last()">\
+                <xsl:value-of select="$list_sep"/></xsl:if>
+        </xsl:for-each>
+        <xsl:value-of select="$field_sep"/>
+
+        <!-- Reading Elements -->
+        <xsl:for-each select="r_ele">
+            <xsl:value-of select="reb"/>
+            <xsl:if test="position() != last()">\
+                <xsl:value-of select="$list_sep"/></xsl:if>
+        </xsl:for-each>
+        <xsl:value-of select="$field_sep"/>
+
+        <!-- Translation Elements -->
+        <xsl:for-each select="trans">
+            <!-- Type -->
+            <xsl:for-each select="name_type">
+                <xsl:value-of select="."/>
+                <xsl:if test="position() != last()">\
+                    <xsl:value-of select="$list_sep"/></xsl:if>
+            </xsl:for-each>
+            <xsl:text>;</xsl:text>
+            <!-- Translation Detail -->
+            <xsl:for-each select="trans_det">
+                <xsl:value-of select="."/>
+                <xsl:if test="position() != last()">\
+                    <xsl:value-of select="$list_sep"/></xsl:if>
+            </xsl:for-each>
+            <xsl:if test="position() != last()">\
+                <xsl:value-of select="$trans_sep"/></xsl:if>
+        </xsl:for-each>
+
+        <!-- Newline for next entry -->
+        <xsl:text>&#10;</xsl:text>
+    </xsl:template>
+
+</xsl:stylesheet>
+"""
+
+
 def parse_jmnedict():
-    """Parses JMnedict.xml and saves it as a JSON file."""
-    
+    """
+    Parses JMnedict.xml and saves it as a JSON file using an embedded XSLT.
+    """
+
     raw_path = RAW_JMNEDICT_PATH
     processed_path = JMNEDICT_PATH
-    
+
     processed_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"Parsing {raw_path}...")
+    click.echo(f"Parsing {raw_path.name} with embedded XSLT...")
 
+    # Load XML from file and XSLT from our embedded string
+    xml_doc = etree.parse(str(raw_path))
+    xslt_doc = etree.parse(BytesIO(XSLT_TRANSFORM))
+    transform = etree.XSLT(xslt_doc)
+
+    # Apply transformation at C-level for speed
+    result_tree = transform(xml_doc)
+
+    # Process the simplified text output
     entries = []
-    # Use iterparse for memory-efficient parsing of the large XML file
-    for _, element in etree.iterparse(raw_path, tag='entry'):
-        entry = {
-            "id": int(element.findtext('ent_seq')),
-            "kanji": [],
-            "kana": [],
-            "translations": [],
-        }
+    lines = str(result_tree).splitlines()
 
-        # Extract kanji elements
-        for k_ele in element.findall('k_ele'):
-            entry["kanji"].append({"text": k_ele.findtext('keb')})
+    with click.progressbar(lines,
+                           label="  -> Assembling JSON...",
+                           item_show_func=lambda x: "") as bar:
+        for i, line in enumerate(bar):
+            parts = line.split('|')
+            if len(parts) != 4:
+                continue
 
-        # Extract kana elements
-        for r_ele in element.findall('r_ele'):
-            entry["kana"].append({"text": r_ele.findtext('reb')})
-            
-        # Extract translation elements
-        for trans in element.findall('trans'):
-            entry["translations"].append({
-                "type": [t.text for t in trans.findall('name_type')],
-                "translation": [t.text for t in trans.findall('trans_det')],
+            entry_id, kanji_str, kana_str, trans_str = parts
+            translations = []
+            for trans_part in trans_str.split('^'):
+                if not trans_part:
+                    continue
+                if ';' in trans_part:
+                    type_str, detail_str = trans_part.split(';', 1)
+                else:
+                    type_str, detail_str = trans_part, ""
+                translations.append({
+                    "type": [t for t in type_str.split('~') if t],
+                    "translation": [d for d in detail_str.split('~') if d]
+                })
+
+            entries.append({
+                "id": int(entry_id),
+                "kanji": [{"text": k} for k in kanji_str.split('~') if k],
+                "kana": [{"text": k} for k in kana_str.split('~') if k],
+                "translations": translations
             })
-            
-        entries.append(entry)
-        # Free up memory
-        element.clear()
-        while element.getprevious() is not None:
-            del element.getparent()[0]
 
-    print(f"Writing {len(entries)} entries to {processed_path}...")
+    click.echo(f"\nWriting {len(entries)} entries to {processed_path.name}...")
     with open(processed_path, 'w', encoding='utf-8') as f:
         json.dump(entries, f, ensure_ascii=False)
 
-    print("Successfully processed JMnedict.")
+    click.secho("Successfully processed JMnedict.", fg="green")
+
 
 if __name__ == "__main__":
     parse_jmnedict()

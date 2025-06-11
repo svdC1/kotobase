@@ -12,6 +12,7 @@ DATABASE_URL = f"sqlite:///{file_dir / 'kotobase.db'}"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 @contextmanager
 def get_db():
     """
