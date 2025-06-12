@@ -19,7 +19,11 @@ class KanjiRepo:
             return KanjiRepo._cache[lit]
 
         with get_db() as s:
-            row = s.get(orm.Kanjidic, lit)
+            row = (
+                s.query(orm.Kanjidic)
+                .filter(orm.Kanjidic.literal == lit)
+                .first()
+            )
             if not row:
                 return None
 
