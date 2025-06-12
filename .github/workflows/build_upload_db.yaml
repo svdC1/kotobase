@@ -10,9 +10,6 @@ jobs:
     build-and-upload:
         runs-on: ubuntu-latest
         steps:
-            - name: Check out repository
-              uses: actions/checkout@v3
-
             - name: Set up Python
               uses: actions/setup-python@v4
               with:
@@ -20,7 +17,7 @@ jobs:
 
             - name: Install dependencies
               run: |
-                  pip install -e ./kotobase
+                  pip install kotobase
 
             - name: Build the database
               run: |
