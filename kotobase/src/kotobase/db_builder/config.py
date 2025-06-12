@@ -9,8 +9,8 @@ JMNEDICT_URL = "http://ftp.edrdg.org/pub/Nihongo/JMnedict.xml.gz"
 KANJIDIC2_URL = "http://www.edrdg.org/kanjidic/kanjidic2.xml.gz"
 
 # Tatoeba URL for Japanese sentences
-TATOEBA_URL = "https://downloads.tatoeba.org/exports/per_language/jpn/jpn_s\
-    entences.tsv.bz2"
+TATOEBA_URL = ("https://downloads.tatoeba.org/exports/per_language/jpn/"
+               "jpn_sentences.tsv.bz2")
 
 # Data directory to store raw and processed data
 DATA_DIR = file_dir / "data"
