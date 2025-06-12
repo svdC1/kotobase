@@ -1,69 +1,123 @@
 # Kotobase
 
-Kotobase is a Python package that provides a comprehensive, pre-built SQLite database of Japanese language resources, along with a simple API for querying the data. It's designed to be an easy-to-use, up-to-date replacement for the now-outdated Jamdict library.
+**Kotobase is a Japanese language Python package which provides simple programmatic access to various data sources via a pre-built database which is updated weekly via a GitHub action.**
+
+## Data Sources
+
+Kotobase uses data from these sources to build its Database.
+
+-   [`JMDict`](http://www.edrdg.org/jmdict/j_jmdict.html) : Japanese-Multilingual Dictionary.
+
+-   [`JMnedict`](http://www.edrdg.org/enamdict/enamdict_doc.html) : A dictionary of Japanese proper names.
+
+-   [`KanjiDic2`](http://www.edrdg.org/kanjidic/kanjd2index_legacy.html) : A comprehensive kanji dictionary.
+
+-   [`Tatoeba`](https://tatoeba.org/en/) : A large database of example sentences.
+
+-   [`JLPT Lists`](http://www.tanos.co.uk/) : Curated list of Grammar, Vocabulary and Kanji separated by Japanese Language Proficiency Test levels, made available on Jonathan Weller's website.
+
+### Licenses
+
+> The licenses of these data sources and the NOTICE is available at `docs/licenses` in this repository.
 
 ## Features
 
-- **Comprehensive Data:** Includes JMDict, JMnedict, Kanjidic2, Tatoeba Japanese sentences, and JLPT vocabulary, kanji, and grammar lists.
-- **Pre-built Database:** The package includes a ready-to-use SQLite database, so there's no need for a complex setup process.
-- **Simple API:** A straightforward, SQLAlchemy-based API for querying the database.
-- **Regular Updates:** The database is rebuilt weekly with the latest data from the source dictionaries.
+-   **Comprehensive Lookups** &rarr; Search for words (kanji, kana, or romaji), kanji, and proper names.
+
+-   **Organized Data** &rarr; Get detailed information including readings, senses, parts of speech, kanji stroke counts, meanings, and JLPT levels formatted into Python Data Objects.
+
+-   **Example Sentences** &rarr; Find example sentences from Tatoeba that contain the searched query.
+
+-   **Wildcard Search** &rarr; Use `*` or `%` for wildcard searches.
+
+-   **Command-Line Interface** &rarr; User-friendly CLI for quick lookups from the terminal.
+
+-   **Self-Contained** &rarr; All data is stored in a local SQLite database, so it's fast and works offline.
+
+-   **Easy Database Management** &rarr; Includes commands to automatically download the latest pre-built database from the public Drive or download source files and build the database locally.
 
 ## Installation
 
-You can install Kotobase directly from this repository using pip:
-
 ```bash
-pip install .
+pip install kotobase
 ```
 
-## Quick Start
+This will install the `kotobase` package and its dependencies, and it will also make the `kotobase` command-line tool available in your shell.
 
-Here's a simple example of how to use Kotobase to perform a comprehensive lookup of a word:
+## Usage
+
+Kotobase can be used as a command-line tool or as a Python library.
+
+### Command-Line Interface
+
+The `kotobase` command provides several subcommands for different types of lookups.
+
+#### General Lookup
+
+The `lookup` command is the most comprehensive way to search for a word.
+
+```bash
+kotobase lookup 日本語
+```
+
+This will show you dictionary entries, kanji information, JLPT levels, and example sentences for the word "日本語".
+
+**Options:**
+
+-   `-n`, `--names`: Include proper names from JMnedict in the search.
+-   `-w`, `--wildcard`: Treat `*` or `%` as wildcards in the search term.
+-   `-s`, `--sentences`: Specify the number of example sentences to show.
+-   `--json-out`: Output the full results as a JSON object.
+
+#### Kanji Lookup
+
+To get information about a specific kanji character:
+
+```bash
+kotobase kanji 語
+```
+
+This will display the kanji's grade, stroke count, meanings, on'yomi, and kun'yomi readings, and JLPT level.
+
+#### JLPT Lookup
+
+To check the JLPT level for a word or kanji:
+
+```bash
+kotobase jlpt 勉強
+```
+
+### Python API
+
+You can also use Kotobase in your own Python code.
 
 ```python
 from kotobase import Kotobase
 
-with Kotobase() as kb:
-    # Perform a comprehensive lookup of the word "猫"
-    word_info = kb.lookup_word("猫")
+kb = Kotobase()
 
-    # Print the JMDict entries
-    for entry in word_info["jmdict_entries"]:
-        print(f"JMDict Entry: {entry.kanji[0].text if entry.kanji else entry.kana[0].text}")
-        for i, sense in enumerate(entry.senses):
-            print(f"  Sense {i+1}: {sense.gloss}")
+# Comprehensive lookup
+result = kb.lookup("日本語")
+print(result.to_json(indent=2, ensure_ascii=False))
 
-    # Print Kanjidic information
-    for kanji in word_info["kanjidic_entries"]:
-        if kanji:
-            print(f"Kanji: {kanji.literal} (JLPT N{kanji.jlpt})")
-            print(f"  Meaning: {kanji.meanings}")
+# Get info for a single kanji
+kanji_info = kb.kanji("語")
+print(kanji_info)
 
-    # Print Tatoeba example sentences
-    print("Tatoeba Examples:")
-    for sentence in word_info["tatoeba_sentences"]:
-        print(f"  - {sentence.text}")
+# Get example sentences
+sentences = kb.sentences("勉強")
+for sentence in sentences:
+    print(sentence.text)
 ```
 
-## API Overview
+## Database
 
-The `kotobase.Kotobase` class provides a simple and convenient way to query the database.
+Kotobase relies on a local SQLite database.
 
-### Comprehensive Lookup
+You can also build it from the source files yourself.
 
-- `lookup_word(word)`: Performs a comprehensive lookup of a word, returning a dictionary with JMDict entries, Kanjidic entries, Tatoeba sentences, and JLPT information.
+The following commands are available for managing the database:
 
-### Direct Access Methods
+-   `kotobase pull-db`: Downloads the pre-built SQLite database from a public [`Google Drive Folder`](https://drive.google.com/drive/u/0/folders/14wbgMyp0TubFyFaUy0W_CnK9_z7fo_Fv). This file is overwritten every week with a rebuilt database from updated sources. The rebuilding and overwriting is managed by a GitHub action in this repository.
 
-- `find_word(query)`: Finds a word in JMDict.
-- `find_kanji(literal)`: Finds a kanji in Kanjidic.
-- `get_jmdict_entries()`: Returns all entries from JMDict.
-- `get_jmnedict_entries()`: Returns all entries from JMnedict.
-- `get_kanjidic_entries()`: Returns all entries from Kanjidic.
-- `get_tatoeba_sentences()`: Returns all sentences from Tatoeba.
-- `get_jlpt_vocab(level)`: Gets the JLPT vocabulary list for a given level.
-- `get_jlpt_kanji(level)`: Gets the JLPT kanji list for a given level.
-- `get_jlpt_grammar(level)`: Gets the JLPT grammar list for a given level.
-
-All data is returned as SQLAlchemy model objects, which can be easily used in your Python code.
+-   `kotobase build`: Builds the SQLite database from the raw source files. This will download the latest version of the source files (_Except Tanos JLPT lists which are shipped with the package itself._) and build the database locally.
