@@ -1,1 +1,1 @@
-graft db_builder/data
+graft src/kotobase/db_builder/data

@@ -1,5 +1,9 @@
 # Kotobase
 
+![PyPI - Version](https://img.shields.io/pypi/v/kotobase?pypiBaseUrl=https%3A%2F%2Fpypi.org&style=for-the-badge&logoSize=auto)![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/svdC1/kotobase/build_upload_db.yaml?branch=main&style=for-the-badge&label=Database%20Build)
+
+---
+
 **Kotobase is a Japanese language Python package which provides simple programmatic access to various data sources via a pre-built database which is updated weekly via a GitHub action.**
 
 ## Data Sources
