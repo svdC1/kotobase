@@ -40,5 +40,8 @@ def parse_tatoeba():
     click.secho("Successfully processed Tatoeba sentences.", fg="green")
 
 
+__all__ = ["parse_tatoeba"]
+
+
 if __name__ == "__main__":
     parse_tatoeba()

@@ -238,5 +238,17 @@ def build():
         session.close()
 
 
+__all__ = ["engine",
+           "Session",
+           "create_database",
+           "populate_jmdict",
+           "populate_jmnedict",
+           "populate_kanjidic",
+           "populate_tatoeba",
+           "populate_jlpt",
+           "build"
+           ]
+
+
 if __name__ == "__main__":
     build()

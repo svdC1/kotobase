@@ -162,3 +162,19 @@ class JlptGrammar(Base):
     grammar = Column(String)
     formation = Column(String)
     examples = Column(Text)
+
+
+__all__ = ["Base",
+           "jmdict_kanji_assoc",
+           "jmdict_kana_assoc",
+           "JMDictEntry",
+           "JMDictKanji",
+           "JMDictKana",
+           "JMDictSense",
+           "JMnedictEntry",
+           "Kanjidic",
+           "TatoebaSentence",
+           "JlptVocab",
+           "JlptKanji",
+           "JlptGrammar"
+           ]

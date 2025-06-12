@@ -131,5 +131,7 @@ def parse_jmdict():
     click.secho("Successfully processed JMDict.", fg="green")
 
 
+__all__ = ["XSLT_TRANSFORM", "parse_jmdict"]
+
 if __name__ == "__main__":
     parse_jmdict()

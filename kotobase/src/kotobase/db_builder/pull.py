@@ -29,3 +29,6 @@ def pull_db(force):
         click.secho(f"An error occurred: {e}", fg="red")
         click.echo("Please try building the \
             database manually with 'kotobase build'.")
+
+
+__all__ = ["DRIVE_FILE_ID", "pull_db"]

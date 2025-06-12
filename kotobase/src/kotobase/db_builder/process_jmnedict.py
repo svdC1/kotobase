@@ -127,5 +127,7 @@ def parse_jmnedict():
     click.secho("Successfully processed JMnedict.", fg="green")
 
 
+__all__ = ["XSLT_TRANSFORM", "parse_jmnedict"]
+
 if __name__ == "__main__":
     parse_jmnedict()

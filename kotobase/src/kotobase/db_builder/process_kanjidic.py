@@ -85,5 +85,8 @@ def parse_kanjidic():
     click.secho("Successfully processed Kanjidic2.", fg="green")
 
 
+__all__ = ["parse_kanjidic"]
+
+
 if __name__ == "__main__":
     parse_kanjidic()

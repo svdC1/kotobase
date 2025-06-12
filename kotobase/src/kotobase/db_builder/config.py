@@ -52,3 +52,25 @@ RAW_JMDICT_PATH = RAW_DATA_DIR / "JMdict_e.xml"
 RAW_JMNEDICT_PATH = RAW_DATA_DIR / "JMnedict.xml"
 RAW_KANJIDIC2_PATH = RAW_DATA_DIR / "kanjidic2.xml"
 RAW_TATOEBA_PATH = RAW_DATA_DIR / "jpn_sentences.tsv"
+
+__all__ = ["file_dir",
+           "pkg_root",
+           "db_module",
+           "JMDICT_URL",
+           "JMNEDICT_URL",
+           "KANJIDIC2_URL",
+           "DATA_DIR",
+           "RAW_DATA_DIR",
+           "PROCESSED_DATA_DIR",
+           "DATABASE_PATH",
+           "JMDICT_PATH",
+           "JMNEDICT_PATH",
+           "KANJIDIC2_PATH",
+           "TATOEBA_PATH",
+           "JLPT_FOLDER",
+           "JLPT_PATHS",
+           "RAW_JMDICT_PATH",
+           "RAW_JMNEDICT_PATH",
+           "RAW_KANJIDIC2_PATH",
+           "RAW_TATOEBA_PATH"
+           ]
