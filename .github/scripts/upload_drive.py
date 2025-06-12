@@ -1,8 +1,11 @@
 import os
 import json
+import kotobase
+from pathlib import Path
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+
 # Load credentials from the environment variable (via GitHub secret)
 creds_json = json.loads(os.environ['GCP_SA_KEY'])
 creds = Credentials.from_service_account_info(
@@ -11,7 +14,8 @@ creds = Credentials.from_service_account_info(
 service = build('drive', 'v3', credentials=creds)
 # Get metadata from environment variables
 file_id = os.environ['DRIVE_FILE_ID']
-file_path = os.environ['DB_FILE_PATH']
+db_dir = Path(kotobase.__file__).parent / 'db'
+file_path = str(db_dir / 'kotobase.db')
 file_metadata = {'name': os.path.basename(file_path)}
 media = MediaFileUpload(file_path, mimetype='application/x-sqlite3')
 
