@@ -44,11 +44,24 @@ Kotobase uses data from these sources to build its Database.
 
 ## Installation
 
+-   Install the package
+
 ```bash
 pip install kotobase
 ```
 
-This will install the `kotobase` package and its dependencies, and it will also make the `kotobase` command-line tool available in your shell.
+> This will install the `kotobase` package and its dependencies, and it will also make the `kotobase` command-line tool available in your shell.
+
+-   Pull the Database from Drive or Build it locally by running of the commands below in the environment you installed kotobase
+
+```bash
+# Pull from Drive
+kotobase pull-db
+# Build locally
+kotobase build
+```
+
+> The database will be downloaded or built internally in the package at `kotobase/src/db/kotobase.db` and will be available for use.
 
 ## Usage
 
