@@ -31,4 +31,6 @@ jobs:
                   GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
                   DRIVE_FILE_ID: "1Ejio0X_tcSszt_0nIhJsBqdi-sKfbKqq"
                   DB_FILE_PATH: "./kotobase/src/kotobase/db/kotobase.db"
-              run: python .github/scripts/upload_drive.py
+              run: |
+                  pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+                  python .github/scripts/upload_drive.py
