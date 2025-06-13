@@ -1,11 +1,17 @@
 import json
 import re
+import os
 import click
+import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
+import time
+import datetime
+from textwrap import dedent
 # --- Import from local modules ---
 from kotobase.db_builder.config import (DATABASE_PATH,
+                                        DB_BUILD_LOG_PATH,
+                                        RAW_DATA_DIR,
                                         JMDICT_PATH,
                                         JMNEDICT_PATH,
                                         TATOEBA_PATH,
@@ -210,10 +216,43 @@ def populate_jlpt(session):
 
 
 @click.command('build')
-def build():
-    """Downloads, processes, and builds the Kotobase database."""
+@click.option('--force',
+              is_flag=True,
+              help="Force re-build even if the file exists."
+              )
+def build(force):
+    """Downloads source files, processes, and builds the Kotobase database."""
+
+    if DATABASE_PATH.exists() and not force:
+        click.echo("Database file already exists. Use --force to re-build.")
+        return
+    elif DATABASE_PATH.exists() and force:
+        try:
+            DATABASE_PATH.unlink()
+            click.secho("Deleted Old Database File", fg="green")
+
+        except FileNotFoundError:
+            click.secho("Database File Doesn't Exist, Remove '--force' flag.",
+                        fg="red",
+                        err=True
+                        )
+            sys.exit(1)
+        except PermissionError:
+            click.secho("No Permission To Delete Database File",
+                        fg="red",
+                        err=True
+                        )
+            sys.exit(1)
+        except Exception as e:
+            click.secho(
+                f"Unexpected Error While Deleting Database File: {e}",
+                fg="red",
+                err=True
+                )
+            sys.exit(1)
     session = Session()
     try:
+        start = time.perf_counter()
         click.secho("--- Step 1: Downloading raw data files ---", fg="blue")
         download_data()
 
@@ -231,10 +270,41 @@ def build():
         populate_kanjidic(session)
         populate_tatoeba(session)
         populate_jlpt(session)
-
+        end = time.perf_counter()
         click.secho("\nDatabase build process complete.",
                     fg="green", bold=True)
+        build_time_sec = end - start
+        build_date = str(datetime.datetime.now())
+        build_file_size_mb = (os.path.getsize(DATABASE_PATH) / 1024) / 1024
+        build_log_txt = dedent(
+            f"""BUILD_TIME={build_time_sec}
+BUILD_DATE={build_date}
+SIZE_MB={build_file_size_mb}
+""")
+
+        # Log Build Info
+        try:
+            DB_BUILD_LOG_PATH.unlink(missing_ok=True)
+            DB_BUILD_LOG_PATH.touch()
+            DB_BUILD_LOG_PATH.write_text(build_log_txt)
+        except Exception as e:
+            click.secho(f"Couldn't write log: {e}",
+                        fg="yellow")
+            pass
+
+        click.secho(f"\nBuild Time: {build_time_sec} seconds")
+        click.secho(f"\nBuild Date: {build_date}")
+        click.secho(f"\nFile Size: {build_file_size_mb} MB")
     finally:
+        # Delete Raw Files
+        for p in RAW_DATA_DIR.iterdir():
+            p.unlink(missing_ok=True)
+        # Delete JSON Files
+        JMDICT_PATH.unlink(missing_ok=True)
+        JMNEDICT_PATH.unlink(missing_ok=True)
+        KANJIDIC2_PATH.unlink(missing_ok=True)
+        TATOEBA_PATH.unlink(missing_ok=True)
+        # Close Session
         session.close()
 
 

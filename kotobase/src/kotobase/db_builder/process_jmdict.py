@@ -5,7 +5,7 @@ from io import BytesIO
 from kotobase.db_builder.config import (RAW_JMDICT_PATH,
                                         JMDICT_PATH)
 
-# XSLT content is embedded directly into the script
+
 XSLT_TRANSFORM = b"""<?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
     <xsl:output method="text" encoding="UTF-8"/>
@@ -75,6 +75,8 @@ def parse_jmdict():
 
     raw_path = RAW_JMDICT_PATH
     processed_path = JMDICT_PATH
+    # Delete if it already exists
+    processed_path.unlink(missing_ok=True)
 
     processed_path.parent.mkdir(parents=True, exist_ok=True)
 

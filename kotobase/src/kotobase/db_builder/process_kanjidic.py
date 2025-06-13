@@ -10,7 +10,8 @@ def parse_kanjidic():
 
     raw_path = RAW_KANJIDIC2_PATH
     processed_path = KANJIDIC2_PATH
-
+    # Delete if it already exists
+    processed_path.unlink(missing_ok=True)
     processed_path.parent.mkdir(parents=True, exist_ok=True)
 
     click.echo(f"Parsing {raw_path.name}...")

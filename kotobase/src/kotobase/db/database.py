@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from contextlib import contextmanager
 from functools import lru_cache
 import threading
-
+from kotobase.db_builder.config import DATABASE_PATH
 
 # Get the directory of the current file
 file_dir = Path(__file__).resolve().parent
@@ -34,6 +34,9 @@ def get_db():
     Context-managed session that is *implicitly reused* if we’re already
     inside a DB context on the same thread.
     """
+    if not DATABASE_PATH.exists():
+        raise EnvironmentError(
+            "Couldn't find Database. Try running CLI build or pull command")
     new = not hasattr(_local, "db")
     if new:
         _local.db = Session(_engine(),

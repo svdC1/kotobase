@@ -11,7 +11,10 @@ from kotobase.core.datatypes import (
     KanjiDTO,
     JMDictEntryDTO,
     JMNeDictEntryDTO,
+    SentenceDTO
     )
+import re
+from kotobase.db_builder.config import DB_BUILD_LOG_PATH
 from kotobase.repos.jmdict import JMDictRepo
 from kotobase.repos.jmnedict import JMNeDictRepo
 from kotobase.repos.kanji import KanjiRepo
@@ -39,7 +42,7 @@ class Kotobase:
         Parameters
         ----------
         word : str
-            The query string (kana, kanji, or romaji transliteration).
+            The query string (kana, kanji).
             Supports SQL wildcards '*' or '%'.
         wildcard : bool, default False
             If True, passes wildcards through unchanged.  If False,
@@ -94,11 +97,41 @@ class Kotobase:
             examples=sentences,
         )
 
+    # Get Database Info From Build Log
+    @staticmethod
+    def db_info() -> Dict[str, str]:
+        """
+        Return a dictionary containing variables from
+        Database build log file, if it exists.
+        Raises EnvironmentError if file is not found.
+        """
+        if not DB_BUILD_LOG_PATH.exists():
+            raise EnvironmentError("Database Build Log File Not Found")
+        raw_log = DB_BUILD_LOG_PATH.read_text()
+        info = {}
+        matches = {
+            "build_date": re.search(r'^BUILD_DATE=(.+)$',
+                                    raw_log,
+                                    re.MULTILINE),
+            "build_time": re.search(r'^BUILD_TIME=(.+)$',
+                                    raw_log,
+                                    re.MULTILINE),
+            "size_mb": re.search(r'^SIZE_MB=(.+)$',
+                                 raw_log,
+                                 re.MULTILINE)
+            }
+        for k, v in matches.items():
+            if v:
+                info[k] = v.group(1)
+            else:
+                info[k] = "N/A"
+        return info
+
     # Convenience Wrappers
 
     @staticmethod
     @lru_cache(maxsize=10_000)
-    def kanji(literal: str):
+    def kanji(literal: str) -> Optional[KanjiDTO]:
         """Return a single KanjiDTO (or None)."""
         return KanjiRepo.by_literal(literal)
 
@@ -110,11 +143,11 @@ class Kotobase:
         return dto.level if dto else None
 
     @staticmethod
-    def sentences(text: str, *, limit: int = 20):
+    def sentences(text: str, *, limit: int = 20) -> List[SentenceDTO]:
         """Fetch Japanese Tatoeba sentences containing *text*."""
         return SentenceRepo.search_containing(text, limit=limit)
 
-    def __call__(self, word: str, **kwargs):
+    def __call__(self, word: str, **kwargs) -> LookupResult:
         """Alias for `lookup` so you can `Kotobase()(word)`."""
         return self.lookup(word, **kwargs)
 

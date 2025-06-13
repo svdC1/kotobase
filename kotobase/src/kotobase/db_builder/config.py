@@ -53,6 +53,9 @@ RAW_JMNEDICT_PATH = RAW_DATA_DIR / "JMnedict.xml"
 RAW_KANJIDIC2_PATH = RAW_DATA_DIR / "kanjidic2.xml"
 RAW_TATOEBA_PATH = RAW_DATA_DIR / "jpn_sentences.tsv"
 
+# DB BUILD LOG
+DB_BUILD_LOG_PATH = db_module / "kotobase_build.log"
+
 __all__ = ["file_dir",
            "pkg_root",
            "db_module",
@@ -72,5 +75,6 @@ __all__ = ["file_dir",
            "RAW_JMDICT_PATH",
            "RAW_JMNEDICT_PATH",
            "RAW_KANJIDIC2_PATH",
-           "RAW_TATOEBA_PATH"
+           "RAW_TATOEBA_PATH",
+           "DB_BUILD_LOG_PATH"
            ]

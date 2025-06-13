@@ -4,7 +4,7 @@ from lxml import etree
 from io import BytesIO
 from kotobase.db_builder.config import (RAW_JMNEDICT_PATH, JMNEDICT_PATH)
 
-# XSLT content is embedded directly into the script
+
 XSLT_TRANSFORM = b"""<?xml version="1.0" encoding="UTF-8"?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
     <xsl:output method="text" encoding="UTF-8"/>
@@ -74,12 +74,14 @@ def parse_jmnedict():
 
     raw_path = RAW_JMNEDICT_PATH
     processed_path = JMNEDICT_PATH
+    # Delete if it already exists
+    processed_path.unlink(missing_ok=True)
 
     processed_path.parent.mkdir(parents=True, exist_ok=True)
 
     click.echo(f"Parsing {raw_path.name} with embedded XSLT...")
 
-    # Load XML from file and XSLT from our embedded string
+    # Load XML from file and XSLT from embedded string
     xml_doc = etree.parse(str(raw_path))
     xslt_doc = etree.parse(BytesIO(XSLT_TRANSFORM))
     transform = etree.XSLT(xslt_doc)
