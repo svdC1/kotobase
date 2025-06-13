@@ -1,6 +1,8 @@
 ---
-Type: Bug Report
-Title: ""
+name: Bug Report
+about: Report a bug in Kotobase to help us improve
+title: [BUG]
+labels: bug
 ---
 
 ## Description

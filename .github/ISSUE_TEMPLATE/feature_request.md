@@ -1,6 +1,8 @@
 ---
-Type: Feature Request
-Title: ""
+name: Feature Request
+about: Request a feature to be added to Kotobase
+title: [Feature Request]
+labels: Feature Request
 ---
 
 ## Feature Type
