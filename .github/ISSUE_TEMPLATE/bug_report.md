@@ -1,38 +1,32 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
-assignees: ''
-
+Type: Bug Report
+Title: ""
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Description
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+> **A clear and concise description of what the bug is.**
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Affected Functionality
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+> **What part of the package of the package is the bug affecting, for example is it affecting CLI Lookup, Database Build, etc...**
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+## To Reproduce
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+> **Steps to reproduce the bug in list form.**
 
-**Additional context**
-Add any other context about the problem here.
+## Version & System
+
+> **Information about the package version and the environment in which the bug is occuring**
+
+> -   OS &rarr;
+> -   Python Version &rarr;
+> -   Kotobase Version &rarr;
+
+## Expected Behavior
+
+> **A clear and concise description of what you expected to happen.**
+
+## Other Information
+
+> **Add any other context about the problem here.**
