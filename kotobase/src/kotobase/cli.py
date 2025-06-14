@@ -94,11 +94,23 @@ def lookup(word: str,
                 click.secho(f" {head}", bold=True)
                 if sub:
                     click.echo(f"   {sub}")
-                for s in ent.senses:
-                    glosses = "; ".join(s["gloss"] if isinstance(s["gloss"],
-                                                                 list)
-                                        else [s["gloss"]])
-                    bullet(glosses, indent=4)
+                # Handle JMDict entries
+                if hasattr(ent, 'senses') and ent.senses:
+                    for s in ent.senses:
+                        glosses = "; ".join(s.get("gloss", []))
+                        pos = f'({s.get("pos", "")})' if s.get("pos") else ""
+                        bullet(f"{glosses} {pos}".strip(), indent=4)
+
+                # Handle JMnedict entries
+                name_parts = []
+                if hasattr(ent, 'translation_type') and ent.translation_type:
+                    name_parts.append(f'({ent.translation_type})')
+                if hasattr(ent, 'gloss') and ent.gloss:
+                    name_parts.append("; ".join(ent.gloss))
+
+                # Print name related parts
+                if name_parts:
+                    bullet(" ".join(name_parts), indent=4)
         else:
             click.echo("  (nothing found)")
 

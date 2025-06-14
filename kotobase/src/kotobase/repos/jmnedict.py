@@ -2,8 +2,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List, Optional
 
-from sqlalchemy import select
-from sqlalchemy.orm import joinedload
+from sqlalchemy import select, or_
 
 from kotobase.db.database import get_db
 from kotobase.core import datatypes as dt
@@ -18,14 +17,8 @@ class JMNeDictRepo:
     @lru_cache(maxsize=40_000)
     def by_id(entry_id: int) -> Optional[dt.JMNeDictEntryDTO]:
         with get_db() as s:
-            row = s.get(
-                orm.JMnedictEntry,
-                entry_id,
-                options=(
-                    joinedload(orm.JMnedictEntry.kana),
-                    joinedload(orm.JMnedictEntry.kanji),
-                ),
-            )
+            # JMnedictEntry has no relationships, so no need for joinedload
+            row = s.get(orm.JMnedictEntry, entry_id)
         return dt.map_jmnedict(row) if row else None
 
     # Simple LIKE search
@@ -36,18 +29,14 @@ class JMNeDictRepo:
         with get_db() as s:
             stmt = (
                 select(orm.JMnedictEntry)
-                .join(orm.JMnedictEntry.kana, isouter=True)
-                .join(orm.JMnedictEntry.kanji, isouter=True)
                 .where(
-                    orm.JMnedictKana.text.like(pattern)
-                    | orm.JMnedictKanji.text.like(pattern)
-                )
-                .options(
-                    joinedload(orm.JMnedictEntry.kana),
-                    joinedload(orm.JMnedictEntry.kanji),
+                    or_(
+                        orm.JMnedictEntry.kana.like(pattern),
+                        orm.JMnedictEntry.kanji.like(pattern)
+                    )
                 )
             )
             if limit:
                 stmt = stmt.limit(limit)
-            rows = s.scalars(stmt).unique().all()
+            rows = s.scalars(stmt).all()
         return dt.map_many(dt.map_jmnedict, rows)
