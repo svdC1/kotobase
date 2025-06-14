@@ -107,12 +107,16 @@ def handle_kanji(DTO: KanjiDTO):
     if hasattr(DTO, "grade") and DTO.grade:
         section("Grade", indent=2)
         bullet(str(DTO.grade), indent=4)
+    if DTO.meanings:
+        section("Meanings", indent=2)
+        for m in DTO.meanings:
+            bullet(m, indent=4)
 
 
 def handle_jlpt_vocab(DTO: JLPTVocabDTO):
     if DTO.level:
         section("Level", indent=2)
-        bullet(DTO.level, indent=4)
+        bullet(str(DTO.level), indent=4)
     if DTO.kanji:
         section("Kanji", indent=2)
         bullet(DTO.kanji, indent=4)
@@ -124,7 +128,7 @@ def handle_jlpt_vocab(DTO: JLPTVocabDTO):
         bullet(DTO.english, indent=4)
 
 
-def handle_jlpt_gramamr(DTO: JLPTGrammarDTO):
+def handle_jlpt_grammar(DTO: JLPTGrammarDTO):
     if DTO.level:
         section("Level", indent=2)
         bullet(DTO.level, indent=4)
@@ -220,7 +224,7 @@ def lookup(word: str,
         if result.jlpt_grammar:
             click.secho("\n[Tanos JLPT Grammar]", fg="cyan", bold=True)
             for g in result.jlpt_grammar:
-                handle_jlpt_gramamr(g)
+                handle_jlpt_grammar(g)
         # ---------- Sentences ----------
         if sentences:
             click.secho("\n[Example Sentences]", fg="cyan", bold=True)
