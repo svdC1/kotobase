@@ -58,19 +58,19 @@ class Kotobase:
         -------
         LookupResult
         """
-        # 1. Find dictionary entries (JMdict & optionally JMnedict)
-        entries: List[JMDictEntryDTO | JMNeDictEntryDTO] = []
-        entries.extend(
-            JMDictRepo.search_form(word, limit=None if wildcard else 50))
-        if include_names:
-            entries.extend(JMNeDictRepo.search(word, limit=50))
 
-        # 2. Extract unique kanji found in the *query* itself
+        # Extract unique kanji found in the query
         kanji_chars = [c for c in word if "\u4e00" <= c <= "\u9fff"]
-        kanji_info: List[KanjiDTO] = KanjiRepo.bulk_fetch(kanji_chars)
-
-        # 3. Parallel extra look-ups (JLPT + sentences) -----------------
-        with _cf.ThreadPoolExecutor(max_workers=3) as pool:
+        entries: List[JMDictEntryDTO | JMNeDictEntryDTO] = []
+        # Parallel  Lookups
+        with _cf.ThreadPoolExecutor(max_workers=7) as pool:
+            f_jmdict = pool.submit(JMDictRepo.search_form,
+                                   word,
+                                   limit=None if wildcard else 50)
+            f_jmnedict = pool.submit(JMNeDictRepo.search,
+                                     word,
+                                     limit=50) if include_names else None
+            f_kanji = pool.submit(KanjiRepo.bulk_fetch, kanji_chars)
             f_vocab = pool.submit(JLPTRepo.vocab_by_word, word)
             f_levels = pool.submit(JLPTRepo.kanji_levels, kanji_chars)
             f_grammar = pool.submit(JLPTRepo.grammar_entries_like, word)
@@ -80,7 +80,12 @@ class Kotobase:
                 limit=sentence_limit,
                 wildcard=wildcard,
             )
+            # Retrieve results
+            entries.extend(f_jmdict.result())
+            if f_jmnedict:
+                entries.extend(f_jmnedict.result())
 
+            kanji_info: List[KanjiDTO] = f_kanji.result()
             jlpt_vocab = f_vocab.result()
             jlpt_kanji_levels: Dict[str, int] = f_levels.result()
             jlpt_grammar = f_grammar.result()
