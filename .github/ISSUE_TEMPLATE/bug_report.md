@@ -11,7 +11,7 @@ labels: bug
 
 ## Affected Functionality
 
-> **What part of the package of the package is the bug affecting, for example is it affecting CLI Lookup, Database Build, etc...**
+> **What part of the package is the bug affecting, for example is it affecting CLI Lookup, Database Build, etc...**
 
 ## To Reproduce
 
