@@ -47,17 +47,19 @@ def section(text, indent=2, bln=False, color="green", **sechokw):
 def entry_head(DTO: Union[JMDictEntryDTO, JMNeDictEntryDTO]):
     if isinstance(DTO, JMDictEntryDTO):
         section("JMDict", bln=True, indent=0)
+        k_color = "green"
     elif isinstance(DTO, JMNeDictEntryDTO):
         section("JMNeDict", bln=True, indent=0, color="bright_green")
+        k_color = "bright_green"
     if DTO.kanji:
         section(" / ".join(DTO.kanji), color="magenta")
         if DTO.kana:
-            section("Kana", indent=2)
+            section("Kana", indent=2, color=k_color)
             for kana in DTO.kana:
                 bullet(kana, indent=4)
     else:
         if DTO.kana:
-            section(" / ".join(DTO.kana), color="Magenta")
+            section(" / ".join(DTO.kana), color="magenta")
 
 
 def handle_jmdict(DTO: JMDictEntryDTO):
@@ -75,10 +77,10 @@ def handle_jmdict(DTO: JMDictEntryDTO):
 def handle_jmnedict(DTO: JMNeDictEntryDTO):
     entry_head(DTO)
     if DTO.translation_type:
-        section("Translation Type", indent=2)
+        section("Translation Type", indent=2, color="bright_green")
         bullet(DTO.translation_type, indent=4)
     if DTO.gloss:
-        section("Gloss", indent=2)
+        section("Gloss", indent=2, color="bright_green")
         for g in DTO.gloss:
             bullet(g, indent=4)
 
