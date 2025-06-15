@@ -1,5 +1,4 @@
 from __future__ import annotations
-import textwrap
 import click
 import sys
 from typing import Union
@@ -21,42 +20,46 @@ kb = Kotobase()
 
 
 def bullet(text, indent=2):
-    click.echo(" " * indent + "• " + text)
+    try:
+        click.echo(" " * indent + "• " + f"{text}")
+    except Exception as e:
+        click.secho(f"Error in Data Conversion: {e}",
+                    fg="red",
+                    err=True
+                    )
+        sys.exit(1)
 
 
 def section(text, indent=2, bln=False, color="green", **sechokw):
-    fmt = " " * indent + f"[{text}]"
-    if bln:
-        fmt = f"\n{fmt}\n"
-    click.secho(fmt, fg=color, **sechokw)
+    try:
+        fmt = " " * indent + f"[{text}]"
+        if bln:
+            fmt = f"\n{fmt}\n"
+        click.secho(fmt, fg=color, **sechokw)
+    except Exception as e:
+        click.secho(f"Error in Data Conversion: {e}",
+                    fg="red",
+                    err=True
+                    )
+        sys.exit(1)
 
 
 def entry_head(DTO: Union[JMDictEntryDTO, JMNeDictEntryDTO]):
     if isinstance(DTO, JMDictEntryDTO):
         section("JMDict", bln=True, indent=0)
+        k_color = "green"
     elif isinstance(DTO, JMNeDictEntryDTO):
         section("JMNeDict", bln=True, indent=0, color="bright_green")
+        k_color = "bright_green"
     if DTO.kanji:
         section(" / ".join(DTO.kanji), color="magenta")
         if DTO.kana:
-            section("Kana", indent=2)
+            section("Kana", indent=2, color=k_color)
             for kana in DTO.kana:
                 bullet(kana, indent=4)
     else:
         if DTO.kana:
-            section(" / ".join(DTO.kana), color="Magenta")
-
-
-def wrap(text: str,
-         width: int = 78,
-         indent: int = 4
-         ):
-    click.echo(textwrap.fill(text,
-                             width=width,
-                             initial_indent=" " * indent,
-                             subsequent_indent=" " * indent
-                             )
-               )
+            section(" / ".join(DTO.kana), color="magenta")
 
 
 def handle_jmdict(DTO: JMDictEntryDTO):
@@ -74,10 +77,10 @@ def handle_jmdict(DTO: JMDictEntryDTO):
 def handle_jmnedict(DTO: JMNeDictEntryDTO):
     entry_head(DTO)
     if DTO.translation_type:
-        section("Translation Type", indent=2)
+        section("Translation Type", indent=2, color="bright_green")
         bullet(DTO.translation_type, indent=4)
     if DTO.gloss:
-        section("Gloss", indent=2)
+        section("Gloss", indent=2, color="bright_green")
         for g in DTO.gloss:
             bullet(g, indent=4)
 
@@ -131,7 +134,7 @@ def handle_jlpt_vocab(DTO: JLPTVocabDTO):
 def handle_jlpt_grammar(DTO: JLPTGrammarDTO):
     if DTO.level:
         section("Level", indent=2)
-        bullet(DTO.level, indent=4)
+        bullet(str(DTO.level), indent=4)
     if DTO.grammar:
         section("Grammar", indent=2)
         bullet(DTO.grammar, indent=4)

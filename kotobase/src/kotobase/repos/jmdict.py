@@ -41,9 +41,8 @@ class JMDictRepo:
         is escaped. Underscore '_' is left alone to allow single-char LIKE.
         """
         return (
-            s.replace("%", "\\%")
-            .replace("*", "%")
-            .replace("\\", "\\\\")
+            s.replace("*", "%")
+
         )
 
     @staticmethod

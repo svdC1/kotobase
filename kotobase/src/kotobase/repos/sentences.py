@@ -21,14 +21,15 @@ class SentenceRepo:
         in '%' to simulate a *contains all chars in order* fuzzy search.
         """
         if wildcard:
-            pattern = f"%{'%'.join(text)}%"
-        else:
-            pattern = f"%{text}%"
+            text = text.replace("*", "%")
+            text = '%'.join(text)
+
+        pattern = f"%{text}%"
 
         with get_db() as s:
             rows = (
                 s.query(orm.TatoebaSentence)
-                .filter(orm.TatoebaSentence.text.like(pattern))
+                .filter(orm.TatoebaSentence.text.like(pattern, escape="\\"))
                 .limit(limit)
                 .all()
             )
