@@ -2,6 +2,10 @@
 
 **Kotobase is a Japanese language Python package which provides simple programmatic access to various data sources via a pre-built database which is updated weekly via a GitHub action.**
 
+## Documentation
+
+> Detailed documentation is avilable at the [`GitHub Pages Site`](https://svdc1.github.io/kotobase)
+
 ## Data Sources
 
 Kotobase uses data from these sources to build its Database.
@@ -111,7 +115,7 @@ kb = Kotobase()
 
 # Comprehensive lookup
 result = kb.lookup("日本語")
-print(result.to_json(indent=2, ensure_ascii=False))
+print(result.to_json())
 
 # Get info for a single kanji
 kanji_info = kb.kanji("語")

@@ -1,8 +1,8 @@
-## Command-Line Interface
+# CLI
 
 The `kotobase` command provides several subcommands for different types of lookups.
 
-#### General Lookup
+## General Lookup
 
 The `lookup` command is the most comprehensive way to search for a word.
 
@@ -19,7 +19,7 @@ This will show you dictionary entries, kanji information, JLPT levels, and examp
 -   `-s`, `--sentences`: Specify the number of example sentences to show.
 -   `--json-out`: Output the full results as a JSON object.
 
-#### Kanji Lookup
+## Kanji Lookup
 
 To get information about a specific kanji character:
 
@@ -29,7 +29,7 @@ kotobase kanji 語
 
 This will display the kanji's grade, stroke count, meanings, on'yomi, and kun'yomi readings, and JLPT level.
 
-#### JLPT Lookup
+## JLPT Lookup
 
 To check the JLPT level for a word or kanji:
 
@@ -37,7 +37,7 @@ To check the JLPT level for a word or kanji:
 kotobase jlpt 勉強
 ```
 
-### Database
+## Database
 
 Kotobase relies on a local SQLite database.
 

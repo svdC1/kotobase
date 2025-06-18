@@ -1,3 +1,4 @@
+# Database Tables
 ::: kotobase.db.models
 ::: kotobase.db.models
     options:
