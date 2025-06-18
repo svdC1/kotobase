@@ -13,13 +13,16 @@ __all__ = ["JMDictRepo"]
 
 
 class JMDictRepo:
-    """Read-only helpers for the JMdict tables."""
+    """Query JMDict Related Tables of Database"""
 
     # ── single-row lookups ──────────────────────────────────────────────
 
     @staticmethod
     @lru_cache(maxsize=100_000)
     def by_id(entry_id: int) -> Optional[dt.JMDictEntryDTO]:
+        """
+        Retrieve Entry by id.
+        """
         with get_db() as s:
             row = s.get(
                 orm.JMDictEntry,

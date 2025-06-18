@@ -25,7 +25,7 @@ from kotobase.repos.sentences import SentenceRepo
 class Kotobase:
     """
     Stateless class that orchestrates the individual repositories and
-    returns rich, serialisable objects.
+    returns serialisable objects.
     """
     # Core
     def lookup(
@@ -39,24 +39,21 @@ class Kotobase:
         """
         Comprehensive word lookup.
 
-        Parameters
-        ----------
-        word : str
-            The query string (kana, kanji).
-            Supports SQL wildcards '*' or '%'.
-        wildcard : bool, default False
-            If True, passes wildcards through unchanged.  If False,
-            the search is exact (JMdict) but Tatoeba uses `%word%`
-            containment.
-        include_names : bool, default False
-            Also query JMnedict (proper names).  Can be slow on very
-            broad wildcards.
-        sentence_limit : int, default 50
-            Maximum number of Tatoeba sentences to fetch.
+        Args:
+            word: The query string (kana, kanji)
+                  Supports SQL wildcards '*' or '%'.
 
-        Returns
-        -------
-        LookupResult
+            wildcard: If True, passes wildcards through unchanged.  If False,
+                      the search is exact (JMdict) but Tatoeba uses `%word%`
+                      containment.
+
+            include_names: Also query JMnedict (proper names).
+                           Can be slow on very broad wildcards.
+
+            sentence_limit: Maximum number of Tatoeba sentences to fetch.
+
+        Returns:
+            LookupResult Object.
         """
 
         # Extract unique kanji found in the query
@@ -108,7 +105,9 @@ class Kotobase:
         """
         Return a dictionary containing variables from
         Database build log file, if it exists.
-        Raises EnvironmentError if file is not found.
+
+        Raises:
+          EnvironmentError: If file doeesn't exist.
         """
         if not DB_BUILD_LOG_PATH.exists():
             raise EnvironmentError("Database Build Log File Not Found")
@@ -137,31 +136,55 @@ class Kotobase:
     @staticmethod
     @lru_cache(maxsize=10_000)
     def kanji(literal: str) -> Optional[KanjiDTO]:
-        """Return a single KanjiDTO (or None)."""
+        """
+        Return a single KanjiDTO (or None).
+
+        Args:
+          literal: Kanji Literal String.
+        """
         return KanjiRepo.by_literal(literal)
 
     @staticmethod
     @lru_cache(maxsize=20_000)
     def jlpt_level(word: str) -> Optional[int]:
-        """Shortcut – just return JLPT vocab level for a word."""
+        """
+        Shortcut – just return JLPT vocab level for a word.
+
+        Args:
+          word: Word to search for.
+        """
         dto = JLPTRepo.vocab_by_word(word)
         return dto.level if dto else None
 
     @staticmethod
     def sentences(text: str, *, limit: int = 20) -> List[SentenceDTO]:
-        """Fetch Japanese Tatoeba sentences containing *text*."""
+        """
+        Fetch Japanese Tatoeba sentences containing *text*.
+
+        Args:
+          text: String text to search for
+          limit: How many sentences to return.
+        """
         return SentenceRepo.search_containing(text, limit=limit)
 
     def __call__(self, word: str, **kwargs) -> LookupResult:
-        """Alias for `lookup` so you can `Kotobase()(word)`."""
+        """
+        Alias for `lookup` method
+        """
         return self.lookup(word, **kwargs)
 
     # Context Manager
     def __enter__(self):
+        """
+        Context Manager entry point.
+        """
         return self
 
     def __exit__(self, exc_type, exc, tb):
         # Propagate Exceptions
+        """
+        Propage exceptions in Context Manager close.
+        """
         return False
 
 

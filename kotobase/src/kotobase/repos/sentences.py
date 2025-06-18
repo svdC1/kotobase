@@ -7,7 +7,9 @@ __all__ = ["SentenceRepo"]
 
 
 class SentenceRepo:
-    """Lightweight sentence look-ups (Japanese-only slice of Tatoeba)."""
+    """
+    Query database for Tatoeba example senteces Tables.
+    """
 
     @staticmethod
     def search_containing(
