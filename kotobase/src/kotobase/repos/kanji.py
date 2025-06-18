@@ -8,13 +8,18 @@ __all__ = ["KanjiRepo"]
 
 
 class KanjiRepo:
-    """Single Kanji information pulled from Kanjidic + JLPT overlay."""
+    """
+    Queries Kanji related Tables of the database
+    """
 
     # ── caches: literal → DTO ──────────────────────────────────────────
     _cache: Dict[str, dt.KanjiDTO] = {}
 
     @staticmethod
     def by_literal(lit: str) -> Optional[dt.KanjiDTO]:
+        """
+        Retrieve Kanji by literal
+        """
         if lit in KanjiRepo._cache:
             return KanjiRepo._cache[lit]
 
@@ -41,6 +46,9 @@ class KanjiRepo:
     # bulk helper – keeps order of incoming sequence  --------------------
     @staticmethod
     def bulk_fetch(chars: Iterable[str]) -> List[dt.KanjiDTO]:
+        """
+        Bulk-Fetch Kanji for performance.
+        """
         out: List[dt.KanjiDTO] = []
         missing: List[str] = []
         for c in chars:

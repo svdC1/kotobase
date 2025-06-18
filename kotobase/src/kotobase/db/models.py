@@ -33,6 +33,15 @@ jmdict_kana_assoc = Table('jmdict_kana_assoc',
 
 
 class JMDictEntry(Base):
+    """
+    Raw Database JMDictEntry Table
+
+    Args:
+      id (int): Row ID
+      kanji (relationship): Relationship to JMDict Kanji Table
+      kana (relationship): Relationship to JMDict Kana Table
+      senses (relationship): Relationship to JMDict Senses Table
+    """
     __tablename__ = 'jmdict_entries'
     id = Column(Integer,
                 primary_key=True
@@ -52,6 +61,14 @@ class JMDictEntry(Base):
 
 
 class JMDictKanji(Base):
+    """
+    Raw Database JMDict Kanji Table
+
+    Args:
+      id (int): Row ID
+      text (str): Kanji Text
+      entries (relationship): Relationship to JMDict Entries
+    """
     __tablename__ = 'jmdict_kanji'
     id = Column(Integer,
                 primary_key=True
@@ -66,6 +83,14 @@ class JMDictKanji(Base):
 
 
 class JMDictKana(Base):
+    """
+    Raw Database JMDictEntry Kana Table.
+
+    Args:
+      id (int): Row ID
+      text (string): Kana text
+      entries (relationship): Relationship to JMDict Entry Table.
+    """
     __tablename__ = 'jmdict_kana'
     id = Column(Integer,
                 primary_key=True
@@ -80,6 +105,17 @@ class JMDictKana(Base):
 
 
 class JMDictSense(Base):
+    """
+    Raw Database JMDict Senses Table.
+
+    Args:
+      id (int): Row ID
+      entry_id (int): Foreign Key to JMDict Entries Table ID
+      entry (relationship): Relationship to JMDict Entries Table
+      order (int): Integer representing precedence of sense.
+      pos (str): Part of Speech the entry sense belongs to.
+      gloss (Text): Gloss of the entry.
+    """
     __tablename__ = 'jmdict_senses'
     id = Column(Integer,
                 primary_key=True
@@ -96,6 +132,16 @@ class JMDictSense(Base):
 
 
 class JMnedictEntry(Base):
+    """
+    Raw Database JMNeDictEntry Table.
+
+    Args:
+      id (int): Row ID
+      kanji (str): Kanji text
+      kana (str): Kana text
+      translation_type (str): Type of entry.
+      translation (Text): English text
+    """
     __tablename__ = 'jmnedict_entries'
     id = Column(Integer,
                 primary_key=True
@@ -107,6 +153,19 @@ class JMnedictEntry(Base):
 
 
 class Kanjidic(Base):
+    """
+    Raw Database KANJIDIC2 Table.
+
+    Args:
+      id (int): Row ID
+      literal (str): Kanji Literal
+      grade (int): Japanese Grade in which Kanji is taught.
+      stroke_count (int): Number of strokes in handwriting.
+      jlpt (int): KANJIDIC2 JLPT classification.
+      on_readings (str): On'yomi of Kanji
+      kun_readings (str): Kun'yomi of Kanji
+      meanings (str): List of meanings.
+    """
     __tablename__ = 'kanjidic'
     id = Column(Integer,
                 primary_key=True
@@ -123,6 +182,13 @@ class Kanjidic(Base):
 
 
 class TatoebaSentence(Base):
+    """
+    Raw Database Tatoeba Example Sentences Table.
+
+    Args:
+      id (int): Row ID
+      text (Text): The example sentence entry.
+    """
     __tablename__ = 'tatoeba_sentences'
     id = Column(Integer,
                 primary_key=True
@@ -131,6 +197,16 @@ class TatoebaSentence(Base):
 
 
 class JlptVocab(Base):
+    """
+    Raw Database Tanos JLPT Vocab List Table.
+
+    Args:
+      id (int): Row ID
+      level (int): JLPT Level of the entry
+      kanji (str): Kanji contained in the entry
+      hiragana (str): Kana Reading of the entry
+      english (Text): English translation of the entry
+    """
     __tablename__ = 'jlpt_vocab'
     id = Column(Integer,
                 primary_key=True
@@ -142,6 +218,17 @@ class JlptVocab(Base):
 
 
 class JlptKanji(Base):
+    """
+    Raw Database Tanos JLPT Kanji Table.
+
+    Args:
+      id (int): Row ID
+      level (int): Tanos JLPT level of Kanji
+      kanji (str): Literal Kanji
+      on_yomi (str): On'yomi of the Kanji
+      kun_yomi (str): Kun'yomi of the Kanji
+      english (str): English translation
+    """
     __tablename__ = 'jlpt_kanji'
     id = Column(Integer,
                 primary_key=True
@@ -154,6 +241,16 @@ class JlptKanji(Base):
 
 
 class JlptGrammar(Base):
+    """
+    Raw Database Tanos JLPT Grammar Table.
+
+    Args:
+      id (int): Row ID
+      level (int): JLPT level of grammar point
+      grammar (str): Grammar point itself
+      formation (str): General formation of grammar point
+      examples (Text): List of examples containing grammar point
+    """
     __tablename__ = 'jlpt_grammar'
     id = Column(Integer,
                 primary_key=True

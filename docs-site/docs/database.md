@@ -1,0 +1,9 @@
+::: kotobase.db.database
+::: kotobase.db_builder.build_database
+::: kotobase.db_builder.config
+::: kotobase.db_builder.download
+::: kotobase.db_builder.process_jmdict
+::: kotobase.db_builder.process_jmnedict
+::: kotobase.db_builder.process_kanjidic
+::: kotobase.db_builder.process_tatoeba
+::: kotobase.db_builder.pull

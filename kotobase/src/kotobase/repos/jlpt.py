@@ -8,12 +8,18 @@ __all__ = ["JLPTRepo"]
 
 
 class JLPTRepo:
+    """
+    Query JLPT Relates Tables of Database
+    """
 
     # ── vocab ───────────────────────────────────────────────────────────
 
     @staticmethod
     @lru_cache(maxsize=30_000)
     def vocab_by_word(word: str) -> Optional[dt.JLPTVocabDTO]:
+        """
+        Get vocabulary by word.
+        """
         with get_db() as s:
             row = (
                 s.query(orm.JlptVocab)
@@ -26,6 +32,9 @@ class JLPTRepo:
 
     @staticmethod
     def vocab_level(word: str) -> Optional[int]:
+        """
+        Get Vocab Levels
+        """
         dto = JLPTRepo.vocab_by_word(word)
         return dto.level if dto else None
 
@@ -33,6 +42,9 @@ class JLPTRepo:
 
     @staticmethod
     def kanji_levels(chars: Iterable[str]) -> Dict[str, int]:
+        """
+        Get Kanji Levels
+        """
         with get_db() as s:
             rows = (
                 s.query(orm.JlptKanji)
@@ -45,6 +57,9 @@ class JLPTRepo:
 
     @staticmethod
     def grammar_entries_like(pattern: str) -> List[dt.JLPTGrammarDTO]:
+        """
+        Wildcard search for grammar patterns.
+        """
         pattern = pattern.replace("～", "%").replace("*", "%")
         with get_db() as s:
             rows = (

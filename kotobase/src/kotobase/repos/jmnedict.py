@@ -11,7 +11,9 @@ __all__ = ["JMNeDictRepo"]
 
 
 class JMNeDictRepo:
-    """Name-dictionary look-ups (JMnedict)."""
+    """
+    Queries related to JMNeDict Tables of the database.
+    """
 
     @staticmethod
     @lru_cache(maxsize=40_000)
