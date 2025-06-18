@@ -9,7 +9,7 @@ kb = Kotobase()
 
 # Comprehensive lookup
 result = kb.lookup("日本語")
-print(result.to_json(indent=2, ensure_ascii=False))
+print(result.to_json())
 
 # Get info for a single kanji
 kanji_info = kb.kanji("語")
