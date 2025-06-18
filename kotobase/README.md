@@ -2,6 +2,10 @@
 
 **Kotobase is a Japanese language Python package which provides simple programmatic access to various data sources via a pre-built database which is updated weekly via a GitHub action.**
 
+## Documentation
+
+> Detailed documentation is avilable at the [`GitHub Pages Site`](https://svdc1.github.io/kotobase)
+
 ## Data Sources
 
 Kotobase uses data from these sources to build its Database.
