@@ -1,5 +1,5 @@
 site_name: Kotobase Docs
-#site_url: https://svdc1.github.io/kotobase
+site_url: https://svdc1.github.io/kotobase
 site_dir: site
 repo_url: https://github.com/svdC1/kotobase
 repo_name: svdC1/kotobase
@@ -36,6 +36,8 @@ plugins:
             show_symbol_type_heading: true
             show_symbol_type_toc: true
             docstring_style: google
+            docstring_options:
+              warn_unknown_params: false
             docstring_section_style: table
             show_root_full_path: false
             show_object_full_path: false
