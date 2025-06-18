@@ -38,17 +38,6 @@ class JMDictRepo:
     # ── search helpers ──────────────────────────────────────────────────
 
     @staticmethod
-    def _normalise_wildcard(s: str) -> str:
-        """
-        Users can pass '*' or '%' as a wildcard character. All other input
-        is escaped. Underscore '_' is left alone to allow single-char LIKE.
-        """
-        return (
-            s.replace("*", "%")
-
-        )
-
-    @staticmethod
     def search_form(form: str,
                     /,
                     limit: int | None = 50
@@ -59,25 +48,34 @@ class JMDictRepo:
         - Case-sensitive on purpose (JMdict is already normalised hiragana/
           katakana vs. kanji)
         """
-        pattern = JMDictRepo._normalise_wildcard(form)
+        pattern = form.replace("*", "%")
 
         with get_db() as s:
-            stmt = (
-                select(orm.JMDictEntry)
+            # 1 - IDs Only
+            id_stmt = (
+                select(orm.JMDictEntry.id)
                 .join(orm.JMDictEntry.kana, isouter=True)
                 .join(orm.JMDictEntry.kanji, isouter=True)
                 .where(
-                    orm.JMDictKana.text.like(pattern, escape="\\")
-                    | orm.JMDictKanji.text.like(pattern, escape="\\")
+                    orm.JMDictKana.text.like(pattern)
+                    | orm.JMDictKanji.text.like(pattern)
                 )
+                .distinct()
+                .limit(limit)
+            )
+            ids = [row[0] for row in s.execute(id_stmt)]
+            if not ids:
+                return []
+            # 2- bulk-fetch full objects
+            rows = (
+                s.query(orm.JMDictEntry)
+                .filter(orm.JMDictEntry.id.in_(ids))
                 .options(
                     joinedload(orm.JMDictEntry.kana),
                     joinedload(orm.JMDictEntry.kanji),
                     joinedload(orm.JMDictEntry.senses),
                 )
+                .all()
             )
-            if limit:
-                stmt = stmt.limit(limit)
-            rows = s.scalars(stmt).unique().all()
 
         return dt.map_many(dt.map_jmdict, rows)

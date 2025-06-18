@@ -48,6 +48,13 @@ def create_database():
         DATABASE_PATH.touch()
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS idx_kana_text ON jmdict_kana(text)"
+            )
+        conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS idx_kanji_text ON jmdict_kanji(text)"
+            )
     click.echo("Database created successfully.")
 
 
