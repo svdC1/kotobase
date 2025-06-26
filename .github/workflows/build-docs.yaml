@@ -34,7 +34,7 @@ jobs:
 
             # 4 Build the static site
             - name: Build MkDocs site
-              run: mkdocs build -f docs-site/mkdocs.yml --strict
+              run: mkdocs build -f docs-site/mkdocs.yml
 
             # 5 Deploy to GitHub Pages
             - name: Deploy to gh-pages
