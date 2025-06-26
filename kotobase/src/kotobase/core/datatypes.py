@@ -36,7 +36,7 @@ class Serializable:
         `to_dict` method.
 
         Args:
-          **json_kwargs: Keyword arguments for `json.dumps`
+          **json_kwargs (dict): Keyword arguments for `json.dumps`
 
         Returns:
           str: The object in JSON string format

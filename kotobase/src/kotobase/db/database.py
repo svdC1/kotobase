@@ -44,7 +44,7 @@ def get_db():
     Context-managed `SQLAlchemy` session providing access to the database
 
     Yields:
-      Session: `SQLAlchemy` Session object.
+      Session (Session): `SQLAlchemy` Session object.
 
     Raises:
       EnvironmentError: If the `kotobase.db` file doesn't exist.

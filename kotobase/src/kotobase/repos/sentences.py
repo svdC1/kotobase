@@ -37,6 +37,7 @@ class SentenceRepo:
           wildcard (bool): If True every non-space char is wrapped
                            in '%' to simulate a `contains all chars in order`
                            fuzzy search.
+
         Returns:
           List[SentenceDTO]: List of Sentence data objects.
         """

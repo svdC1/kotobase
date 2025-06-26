@@ -215,7 +215,7 @@ class JMnedictEntry(Base):
     translation_type = Column(
         String(8)
     )
-    english = Column(
+    translation = Column(
         Text
         )
 
