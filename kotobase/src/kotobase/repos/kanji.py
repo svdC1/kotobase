@@ -1,3 +1,8 @@
+"""
+This module defines the `KanjiRepo` class used for querying
+data extracted from the KANJIDIC2 XML file in the database.
+"""
+
 from __future__ import annotations
 from typing import List, Optional, Dict, Iterable
 from kotobase.db.database import get_db
@@ -12,23 +17,25 @@ class KanjiRepo:
     Queries Kanji related Tables of the database
     """
 
-    # ── caches: literal → DTO ──────────────────────────────────────────
-    _cache: Dict[str, dt.KanjiDTO] = {}
+    _cache: Dict[str, dt.KanjiDTO] = {}  # caches: literal → DTO
 
     @staticmethod
     def by_literal(lit: str) -> Optional[dt.KanjiDTO]:
         """
-        Retrieve Kanji by literal
+        Retrieve Kanji by literal.
+
+        Args:
+          lit (str): The Kanji Literal
+
+        Returns:
+          KanjiDTO: Kanji Data Object
+
         """
         if lit in KanjiRepo._cache:
             return KanjiRepo._cache[lit]
 
         with get_db() as s:
-            row = (
-                s.query(orm.Kanjidic)
-                .filter(orm.Kanjidic.literal == lit)
-                .first()
-            )
+            row = s.get(orm.Kanjidic, lit)
             if not row:
                 return None
 
@@ -43,11 +50,17 @@ class KanjiRepo:
             KanjiRepo._cache[lit] = dto
             return dto
 
-    # bulk helper – keeps order of incoming sequence  --------------------
     @staticmethod
     def bulk_fetch(chars: Iterable[str]) -> List[dt.KanjiDTO]:
         """
         Bulk-Fetch Kanji for performance.
+
+        Args:
+          chars (Iterable[str]): Iterable of kanjis.
+
+        Returns:
+          List[KanjiDTO]: List of Kanji Data Objects.
+
         """
         out: List[dt.KanjiDTO] = []
         missing: List[str] = []

@@ -1,3 +1,8 @@
+"""
+This module defines the helper function which
+processes the raw KANJIDIC2 XML file into a JSON
+"""
+
 import json
 import click
 from lxml import etree
@@ -5,8 +10,11 @@ from kotobase.db_builder.config import (RAW_KANJIDIC2_PATH,
                                         KANJIDIC2_PATH)
 
 
-def parse_kanjidic():
-    """Parses kanjidic2.xml and saves it as a JSON file."""
+def parse_kanjidic() -> None:
+    """
+    Click helper function which parses kanjidic.xml
+    and saves it as a JSON file.
+    """
 
     raw_path = RAW_KANJIDIC2_PATH
     processed_path = KANJIDIC2_PATH
@@ -14,13 +22,14 @@ def parse_kanjidic():
     processed_path.unlink(missing_ok=True)
     processed_path.parent.mkdir(parents=True, exist_ok=True)
 
-    click.echo(f"Parsing {raw_path.name}...")
+    click.echo(f"Parsing '{raw_path.name}' ...")
 
     characters = []
     # Use iterparse for memory-efficient parsing
     with click.progressbar(etree.iterparse(raw_path, tag='character'),
-                           label="  -> Processing characters...",
-                           item_show_func=lambda x: "") as bar:
+                           label="Processing characters -> ",
+                           item_show_func=lambda x: ""
+                           ) as bar:
         for _, element in bar:
             character = {
                 "literal": element.findtext('literal'),
@@ -79,11 +88,11 @@ def parse_kanjidic():
                 del element.getparent()[0]
 
     click.echo(f"\nWriting {len(characters)} characters\
-        to {processed_path.name}...")
+        to '{processed_path.name}' ...")
     with open(processed_path, 'w', encoding='utf-8') as f:
         json.dump(characters, f, ensure_ascii=False)
 
-    click.secho("Successfully processed Kanjidic2.", fg="green")
+    click.secho("Successfully Processed Kanjidic2.", fg="green")
 
 
 __all__ = ["parse_kanjidic"]

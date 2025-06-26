@@ -1,3 +1,7 @@
+"""
+This module defines constants for source files downloads and
+internal paths within the package.
+"""
 from pathlib import Path
 
 file_dir = Path(__file__).resolve().parent

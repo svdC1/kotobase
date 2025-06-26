@@ -1,3 +1,7 @@
+"""
+This module defines the kotobase CLI implementation using
+the Click module.
+"""
 from __future__ import annotations
 import click
 import sys

@@ -1,3 +1,8 @@
+"""
+This module defines the main kotobase API through the `Kotobase` class
+to make queries to the database and return data objects.
+"""
+
 from __future__ import annotations
 
 import concurrent.futures as _cf
@@ -27,7 +32,7 @@ class Kotobase:
     Stateless class that orchestrates the individual repositories and
     returns serialisable objects.
     """
-    # Core
+    @lru_cache(100_000)
     def lookup(
         self,
         word: str,
@@ -35,25 +40,24 @@ class Kotobase:
         wildcard: bool = False,
         include_names: bool = False,
         sentence_limit: int = 50,
+        entry_limit: Optional[int] = None
     ) -> LookupResult:
         """
         Comprehensive word lookup.
 
         Args:
-            word: The query string (kana, kanji)
-                  Supports SQL wildcards '*' or '%'.
-
-            wildcard: If True, passes wildcards through unchanged.  If False,
-                      the search is exact (JMdict) but Tatoeba uses `%word%`
-                      containment.
-
-            include_names: Also query JMnedict (proper names).
-                           Can be slow on very broad wildcards.
-
-            sentence_limit: Maximum number of Tatoeba sentences to fetch.
+          word (str): The query string (kana, kanji)
+                      Supports SQL wildcards '*' or '%'.
+          wildcard (bool): If True, passes wildcards through unchanged.
+                           If False, the search is exact (JMdict) but
+                           Tatoeba uses `%word%` containment.
+          include_names (bool): Also query JMnedict (proper names).
+                                Can be slow on very broad wildcards.
+          sentence_limit (int): Maximum number of Tatoeba sentences to fetch.
+          entry_limit (int, optional): Maximum number of entries to fetch.
 
         Returns:
-            LookupResult Object.
+            LookupResult: LookupResult Object.
         """
 
         # Extract unique kanji found in the query
@@ -63,10 +67,13 @@ class Kotobase:
         with _cf.ThreadPoolExecutor(max_workers=7) as pool:
             f_jmdict = pool.submit(JMDictRepo.search_form,
                                    word,
-                                   limit=None if wildcard else 50)
+                                   wildcard=wildcard,
+                                   limit=entry_limit
+                                   )
             f_jmnedict = pool.submit(JMNeDictRepo.search,
                                      word,
-                                     limit=50) if include_names else None
+                                     limit=entry_limit
+                                     ) if include_names else None
             f_kanji = pool.submit(KanjiRepo.bulk_fetch, kanji_chars)
             f_vocab = pool.submit(JLPTRepo.vocab_by_word, word)
             f_levels = pool.submit(JLPTRepo.kanji_levels, kanji_chars)
@@ -140,7 +147,10 @@ class Kotobase:
         Return a single KanjiDTO (or None).
 
         Args:
-          literal: Kanji Literal String.
+          literal (str): Kanji Literal String.
+
+        Returns:
+          KanjiDTO: Kanji data object
         """
         return KanjiRepo.by_literal(literal)
 
@@ -151,41 +161,51 @@ class Kotobase:
         Shortcut – just return JLPT vocab level for a word.
 
         Args:
-          word: Word to search for.
+          word (str): Word to search for.
+
+        Returns:
+          int: The JLPT Level
         """
         dto = JLPTRepo.vocab_by_word(word)
         return dto.level if dto else None
 
     @staticmethod
-    def sentences(text: str, *, limit: int = 20) -> List[SentenceDTO]:
+    def sentences(text: str,
+                  *,
+                  limit: int = 20
+                  ) -> List[SentenceDTO]:
         """
         Fetch Japanese Tatoeba sentences containing *text*.
 
         Args:
-          text: String text to search for
-          limit: How many sentences to return.
+          text (str): String text to search for
+          limit (int): How many sentences to return.
         """
         return SentenceRepo.search_containing(text, limit=limit)
 
-    def __call__(self, word: str, **kwargs) -> LookupResult:
+    def __call__(self,
+                 word: str,
+                 **kwargs) -> LookupResult:
         """
-        Alias for `lookup` method
+        Comprehensive word lookup.
+
+        Args:
+            word (str): The query string (kana, kanji)
+                        Supports SQL wildcards '*' or '%'.
+
+            wildcard (bool): If True, passes wildcards through unchanged.
+                             If False, the search is exact (JMdict) but
+                             Tatoeba uses `%word%` containment.
+
+            include_names (bool): Also query JMnedict (proper names).
+                                  Can be slow on very broad wildcards.
+
+            sentence_limit (int): Maximum number of Tatoeba sentences to fetch.
+
+        Returns:
+            LookupResult: LookupResult Object.
         """
         return self.lookup(word, **kwargs)
-
-    # Context Manager
-    def __enter__(self):
-        """
-        Context Manager entry point.
-        """
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        # Propagate Exceptions
-        """
-        Propage exceptions in Context Manager close.
-        """
-        return False
 
 
 __all__ = ["Kotobase"]

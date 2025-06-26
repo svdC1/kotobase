@@ -1,3 +1,10 @@
+"""
+This module defines the `SentenceRepo` class used for querying
+data extracted from the Japanese Tatoeba example sentences
+in the database.
+"""
+
+
 from __future__ import annotations
 from typing import List
 from kotobase.db.database import get_db
@@ -21,6 +28,17 @@ class SentenceRepo:
         """
         Basic LIKE search.  If `wildcard=True` every non-space char is wrapped
         in '%' to simulate a *contains all chars in order* fuzzy search.
+
+        Args:
+          text (str): Text to look for in sentences
+
+          limit (int): Limit how many sentences are returned.
+
+          wildcard (bool): If True every non-space char is wrapped
+                           in '%' to simulate a `contains all chars in order`
+                           fuzzy search.
+        Returns:
+          List[SentenceDTO]: List of Sentence data objects.
         """
         if wildcard:
             text = text.replace("*", "%")
