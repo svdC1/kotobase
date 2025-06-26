@@ -1,3 +1,8 @@
+"""
+This module defines the `JLPTRepo` class used for querying
+data extracted from Jonathan Weller's website in the database.
+"""
+
 from __future__ import annotations
 from typing import List, Optional, Dict, Iterable
 from functools import lru_cache
@@ -9,7 +14,7 @@ __all__ = ["JLPTRepo"]
 
 class JLPTRepo:
     """
-    Query JLPT Relates Tables of Database
+    Query JLPT Related Tables of Database
     """
 
     # ── vocab ───────────────────────────────────────────────────────────
@@ -18,7 +23,13 @@ class JLPTRepo:
     @lru_cache(maxsize=30_000)
     def vocab_by_word(word: str) -> Optional[dt.JLPTVocabDTO]:
         """
-        Get vocabulary by word.
+        Get vocabulary by word
+
+        Args:
+          word (str): Word to query
+
+        Returns:
+          JLPTVocabDTO: JLPT Vocab data object.
         """
         with get_db() as s:
             row = (
@@ -33,17 +44,29 @@ class JLPTRepo:
     @staticmethod
     def vocab_level(word: str) -> Optional[int]:
         """
-        Get Vocab Levels
+        Get Vocab JLPT levels
+
+        Args:
+          word (str): Word to query.
+
+        Returns:
+          int: JLPT level if existent.
         """
         dto = JLPTRepo.vocab_by_word(word)
         return dto.level if dto else None
 
-    # ── kanji levels (bulk) ─────────────────────────────────────────────
+    # Kanji Levels
 
     @staticmethod
     def kanji_levels(chars: Iterable[str]) -> Dict[str, int]:
         """
-        Get Kanji Levels
+        Get Kanji levels with bulk search
+
+        Args:
+          chars (Iterable[str]): Iterable of character to query.
+
+        Returns:
+          Dict[str, int]: Dictionary with character keys and level values.
         """
         with get_db() as s:
             rows = (
@@ -53,12 +76,18 @@ class JLPTRepo:
             )
         return {r.kanji: r.level for r in rows}
 
-    # ── grammar lookup ─────────────────────────────────────────────────
+    # Grammar Lookup
 
     @staticmethod
     def grammar_entries_like(pattern: str) -> List[dt.JLPTGrammarDTO]:
         """
-        Wildcard search for grammar patterns.
+        Wildcard search for grammar patterns
+
+        Args:
+          pattern (str): Wildcard Pattern
+
+        Returns:
+          List[JLPTGrammarDTO]: List of JLPT Grammar data objects.
         """
         pattern = pattern.replace("～", "%").replace("*", "%")
         with get_db() as s:

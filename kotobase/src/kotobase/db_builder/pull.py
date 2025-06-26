@@ -1,3 +1,8 @@
+"""
+This module defines the click command which pulls a pre-built
+database from a public Google Drive folder.
+"""
+
 import gdown
 import click
 import sys
@@ -16,7 +21,9 @@ DRIVE_LOG_FILE_ID = "12BG6KIueRFETqbVcwDQtLi5aQWsX7MMj"
               help="Force re-download even if the file exists."
               )
 def pull_db(force):
-    """Downloads the latest Kotobase database from Google Drive."""
+    """
+    Downloads the latest Kotobase database from Google Drive.
+    """
 
     if DATABASE_PATH.exists() and not force:
         click.echo("Database file already exists. Use --force to re-download.")
@@ -51,11 +58,12 @@ def pull_db(force):
                 fg="blue")
 
     try:
-        # Use the file ID directly for a reliable download
+        # Use the file ID directly
         gdown.download(id=DRIVE_FILE_ID,
                        output=str(DATABASE_PATH),
                        quiet=False)
         click.secho("Pulling Build Log...")
+        # Also pull build log
         gdown.download(id=DRIVE_LOG_FILE_ID,
                        output=str(DB_BUILD_LOG_PATH),
                        quiet=False)

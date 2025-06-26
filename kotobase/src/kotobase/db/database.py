@@ -1,3 +1,8 @@
+"""
+This module defines handles the database connection through the
+`get_db` context manager.
+"""
+
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -15,7 +20,12 @@ DATABASE_URL = f"sqlite:///{file_dir / 'kotobase.db'}"
 
 @lru_cache
 def _engine():
-    """Singleton SQLAlchemy engine (pooled)."""
+    """
+    Singleton SQLAlchemy engine (pooled).
+
+    Returns:
+      Engine: SQLAlchemy Engine.
+    """
     return create_engine(
         DATABASE_URL,
         future=True,
@@ -31,8 +41,13 @@ _local = threading.local()
 @contextmanager
 def get_db():
     """
-    Context-managed session that is *implicitly reused* if we’re already
-    inside a DB context on the same thread.
+    Context-managed `SQLAlchemy` session providing access to the database
+
+    Yields:
+      Session: `SQLAlchemy` Session object.
+
+    Raises:
+      EnvironmentError: If the `kotobase.db` file doesn't exist.
     """
     if not DATABASE_PATH.exists():
         raise EnvironmentError(

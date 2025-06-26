@@ -1,3 +1,8 @@
+"""
+This module defines the `JMneDictRepo` class used for querying
+data extracted from the JMneDict XML file in the database.
+"""
+
 from __future__ import annotations
 from functools import lru_cache
 from typing import List, Optional
@@ -18,15 +23,35 @@ class JMNeDictRepo:
     @staticmethod
     @lru_cache(maxsize=40_000)
     def by_id(entry_id: int) -> Optional[dt.JMNeDictEntryDTO]:
+        """
+        Retrieve Entry by id.
+
+        Args:
+          entry_id (int): Entry ID in database.
+
+        Returns:
+          JMNeDictEntryDTO: JMNeDict Entry Data Object.
+        """
         with get_db() as s:
-            # JMnedictEntry has no relationships, so no need for joinedload
             row = s.get(orm.JMnedictEntry, entry_id)
         return dt.map_jmnedict(row) if row else None
 
-    # Simple LIKE search
-    # (name dictionaries rarely need wildcards beyond head/tail)
     @staticmethod
-    def search(form: str, limit: int | None = 50) -> List[dt.JMNeDictEntryDTO]:
+    @lru_cache(maxsize=40_000)
+    def search(form: str,
+               limit: Optional[int] = 50
+               ) -> List[dt.JMNeDictEntryDTO]:
+        """
+        LIKE search on JMNeDict table.
+
+        Args:
+          form (str): Query string.
+
+          limit (int, optional): Limit of entries to return, can be set to
+                                 `None` for no limit.
+        Returns:
+          List[JMNeDictEntryDTO]: List of JMNeDictEntry data objects.
+        """
         pattern = form.replace("*", "%")
         with get_db() as s:
             stmt = (

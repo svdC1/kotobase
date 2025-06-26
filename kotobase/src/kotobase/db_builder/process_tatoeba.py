@@ -1,3 +1,8 @@
+"""
+This module defines the helper function which
+processes the raw Tatoeba Examples tsv file into a JSON
+"""
+
 import json
 import csv
 import click
@@ -5,9 +10,11 @@ from kotobase.db_builder.config import (RAW_TATOEBA_PATH,
                                         TATOEBA_PATH)
 
 
-def parse_tatoeba():
-    """Parses jpn_sentences.tsv and saves it as a JSON file."""
-
+def parse_tatoeba() -> None:
+    """
+    Click helper function which parses tatoeba.tsv
+    and saves it as a JSON file.
+    """
     raw_path = RAW_TATOEBA_PATH
     processed_path = TATOEBA_PATH
     # Delete if it already exists
@@ -24,7 +31,7 @@ def parse_tatoeba():
 
         reader = csv.reader(f, delimiter='	', quoting=csv.QUOTE_NONE)
         with click.progressbar(reader, length=total_lines,
-                               label="  -> Processing sentences...") as bar:
+                               label="Processing sentences -> ") as bar:
             for row in bar:
                 if len(row) == 3:
                     sentences.append({
@@ -34,11 +41,11 @@ def parse_tatoeba():
                     })
 
     click.echo(f"\nWriting {len(sentences)} \
-        sentences to {processed_path.name}...")
+        sentences to '{processed_path.name}' ...")
     with open(processed_path, 'w', encoding='utf-8') as f:
         json.dump(sentences, f, ensure_ascii=False)
 
-    click.secho("Successfully processed Tatoeba sentences.", fg="green")
+    click.secho("Successfully Processed Tatoeba Sentences.", fg="green")
 
 
 __all__ = ["parse_tatoeba"]

@@ -1,3 +1,7 @@
+"""
+This module defines the helper function which downloads the
+zipped source files and extracts their content for processing.
+"""
 from pathlib import Path
 import requests
 import gzip
@@ -16,13 +20,22 @@ file_dir = Path(__file__).resolve().parent
 project_root = file_dir.parent
 
 
-def download_and_extract(url: str, output_filename: str):
-    """Downloads a file from a URL and extracts it if compressed."""
+def download_and_extract(url: str,
+                         output_filename: str
+                         ) -> None:
+    """
+    Click command helper which downloads a file
+    from an URL and extracts it if it is compressed.
+
+    Args:
+      url (str): File download URL
+      output_filename (str): Path of where to save the file.
+    """
     try:
         output_path = RAW_DATA_DIR / output_filename
         # Delete if it already exists
         output_path.unlink(missing_ok=True)
-        click.secho(f"Downloading {url}...",
+        click.secho(f"Downloading '{url}' ...",
                     fg="blue")
         response = requests.get(url, stream=True)
         response.raise_for_status()
@@ -34,11 +47,12 @@ def download_and_extract(url: str, output_filename: str):
         click.secho("  Download Successful",
                     fg="green")
 
+        # Uncompress GZ file
         if url.endswith(".gz"):
             uncompressed_path = output_path.with_suffix('')
             # Delete if it already exists
             uncompressed_path.unlink(missing_ok=True)
-            click.secho(f"  Extracting to {uncompressed_path}...",
+            click.secho(f"  Extracting to '{uncompressed_path}' ...",
                         fg="blue")
             with gzip.open(output_path, "rb") as f_in:
                 with open(uncompressed_path, "wb") as f_out:
@@ -46,11 +60,13 @@ def download_and_extract(url: str, output_filename: str):
             output_path.unlink()
             click.secho("  Done!",
                         fg="green")
+
+        # Uncompress BZ2 file
         elif url.endswith(".bz2"):
             uncompressed_path = output_path.with_suffix('')
             # Delete if it already exists
             uncompressed_path.unlink(missing_ok=True)
-            click.secho(f"  Extracting to {uncompressed_path}...",
+            click.secho(f"  Extracting to '{uncompressed_path}' ...",
                         fg="blue")
             with bz2.open(output_path, "rb") as f_in:
                 with open(uncompressed_path, "wb") as f_out:
@@ -59,15 +75,18 @@ def download_and_extract(url: str, output_filename: str):
             click.secho("  Done!",
                         fg="bright_green")
     except Exception as e:
-        click.secho(f"Error while downloading {url} : {e}",
+        click.secho(f"Error while downloading '{url}' : {e}",
                     fg="red",
                     err=True
                     )
         sys.exit(1)
 
 
-def main():
-    """Main function to download all data sources."""
+def main() -> None:
+    """
+    Main download function to download all data sources
+    from URLs specified in the `config` module.
+    """
     RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
     download_and_extract(JMDICT_URL, "JMdict_e.xml.gz")
     download_and_extract(JMNEDICT_URL, "JMnedict.xml.gz")

@@ -1,3 +1,9 @@
+"""
+This module defines the helper function which
+processes the raw JMNeDict XML file into a JSON
+file using XSLT transform for performance.
+"""
+
 import json
 import click
 from lxml import etree
@@ -69,7 +75,8 @@ XSLT_TRANSFORM = b"""<?xml version="1.0" encoding="UTF-8"?>
 
 def parse_jmnedict():
     """
-    Parses JMnedict.xml and saves it as a JSON file using an embedded XSLT.
+    Click helper function which parses JMNedict_e.xml
+    and saves it as a JSON file using an embedded XSLT.
     """
 
     raw_path = RAW_JMNEDICT_PATH
@@ -79,7 +86,7 @@ def parse_jmnedict():
 
     processed_path.parent.mkdir(parents=True, exist_ok=True)
 
-    click.echo(f"Parsing {raw_path.name} with embedded XSLT...")
+    click.echo(f"Parsing '{raw_path.name}' with embedded XSLT ...")
 
     # Load XML from file and XSLT from embedded string
     xml_doc = etree.parse(str(raw_path))
@@ -94,7 +101,7 @@ def parse_jmnedict():
     lines = str(result_tree).splitlines()
 
     with click.progressbar(lines,
-                           label="  -> Assembling JSON...",
+                           label="Assembling JSON -> ",
                            item_show_func=lambda x: "") as bar:
         for i, line in enumerate(bar):
             parts = line.split('|')
@@ -122,11 +129,12 @@ def parse_jmnedict():
                 "translations": translations
             })
 
-    click.echo(f"\nWriting {len(entries)} entries to {processed_path.name}...")
+    click.echo(
+        f"\nWriting {len(entries)} entries to '{processed_path.name}' ...")
     with open(processed_path, 'w', encoding='utf-8') as f:
         json.dump(entries, f, ensure_ascii=False)
 
-    click.secho("Successfully processed JMnedict.", fg="green")
+    click.secho("Successfully Processed JMnedict.", fg="green")
 
 
 __all__ = ["XSLT_TRANSFORM", "parse_jmnedict"]

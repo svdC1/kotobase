@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kotobase"
-version = "0.2.3"
+version = "0.2.4"
 authors = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
 maintainers = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
 description = "Python package for accessing a comprehensive Japanese language database."
@@ -18,16 +18,7 @@ classifiers = [
 ]
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
-dependencies = [
-    "requests",
-    "sqlalchemy",
-    "alembic",
-    "beautifulsoup4",
-    "lxml",
-    "pypdf",
-    "click",
-    "gdown",
-]
+dependencies = ["requests", "sqlalchemy", "alembic", "lxml", "click", "gdown"]
 
 [project.scripts]
 kotobase = "kotobase.cli:main"

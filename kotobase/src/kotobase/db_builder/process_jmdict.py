@@ -1,3 +1,9 @@
+"""
+This module defines the helper function which
+processes the raw JMDict XML file into a JSON
+file using XSLT transform for performance.
+"""
+
 import json
 import click
 from lxml import etree
@@ -68,9 +74,10 @@ XSLT_TRANSFORM = b"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-def parse_jmdict():
+def parse_jmdict() -> None:
     """
-    Parses JMdict_e.xml and saves it as a JSON file using an embedded XSLT.
+    Click helper function which parses JMdict_e.xml
+    and saves it as a JSON file using an embedded XSLT.
     """
 
     raw_path = RAW_JMDICT_PATH
@@ -80,7 +87,7 @@ def parse_jmdict():
 
     processed_path.parent.mkdir(parents=True, exist_ok=True)
 
-    click.echo(f"Parsing {raw_path.name} with embedded XSLT...")
+    click.echo(f"Parsing '{raw_path.name}' with embedded XSLT ...")
 
     # Load XML from file and XSLT from our embedded string
     xml_doc = etree.parse(str(raw_path))
@@ -95,7 +102,7 @@ def parse_jmdict():
     lines = str(result_tree).splitlines()
 
     with click.progressbar(lines,
-                           label="  -> Assembling JSON...",
+                           label="Assembling JSON -> ",
                            item_show_func=lambda x: "") as bar:
         for i, line in enumerate(bar):
             parts = line.split('|')
@@ -119,18 +126,25 @@ def parse_jmdict():
                     "pos": [p for p in pos_str.split('~') if p]
                 })
 
-            entries.append({
-                "id": int(entry_id),
-                "kanji": [{"text": k} for k in kanji_str.split('~') if k],
-                "kana": [{"text": k} for k in kana_str.split('~') if k],
-                "senses": senses
-            })
+                entries.append({
+                    "id": int(entry_id),
+                    "kanji": [
+                        {"text": k, "order": i}
+                        for i, k in enumerate(kanji_str.split('~')) if k
+                        ],
+                    "kana": [{"text": k, "order": i}
+                             for i, k in enumerate(kana_str.split('~')) if k
+                             ],
+                    "senses": senses
+                    })
 
-    click.echo(f"\nWriting {len(entries)} entries to {processed_path.name}...")
+    click.echo(
+        f"\nWriting {len(entries)} entries to '{processed_path.name}' ..."
+        )
     with open(processed_path, 'w', encoding='utf-8') as f:
         json.dump(entries, f, ensure_ascii=False)
 
-    click.secho("Successfully processed JMDict.", fg="green")
+    click.secho("Successfully Processed JMDict.", fg="green")
 
 
 __all__ = ["XSLT_TRANSFORM", "parse_jmdict"]
