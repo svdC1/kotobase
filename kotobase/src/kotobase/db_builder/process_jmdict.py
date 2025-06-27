@@ -7,6 +7,7 @@ file using XSLT transform for performance.
 import json
 import click
 from lxml import etree
+from typing import List
 from io import BytesIO
 from kotobase.db_builder.config import (RAW_JMDICT_PATH,
                                         JMDICT_PATH)
@@ -46,7 +47,14 @@ XSLT_TRANSFORM = b"""<?xml version="1.0" encoding="UTF-8"?>
                 "$list_sep"/></xsl:if>
         </xsl:for-each>
         <xsl:value-of select="$field_sep"/>
-
+        <!-- Priority Tags (ke_pri / re_pri) -->
+        <xsl:for-each select="k_ele/ke_pri | r_ele/re_pri">
+            <xsl:value-of select="."/>
+            <xsl:if test="position() != last()">
+                <xsl:value-of select="$list_sep"/>
+            </xsl:if>
+        </xsl:for-each>
+        <xsl:value-of select="$field_sep"/>
         <!-- Sense Elements -->
         <xsl:for-each select="sense">
             <!-- Gloss -->
@@ -74,6 +82,31 @@ XSLT_TRANSFORM = b"""<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+def _rank(pri_list: List[str]) -> int:
+    """
+    Create an entry priority rank according to
+    <pri> tags.
+
+    Args:
+      pri_list (List[str]): List of extracted <pri> tags
+
+    Returns:
+      int: Rank for the entry.
+    """
+    HIGH = {"news1",
+            "ichi1",
+            "spec1",
+            "spec2",
+            "gai1"
+            }
+    if any(tag in HIGH for tag in pri_list):
+        return 0
+    for tag in pri_list:
+        if tag.startswith("nf"):
+            return int(tag[2:])  # nf05 → 5
+        return 99
+
+
 def parse_jmdict() -> None:
     """
     Click helper function which parses JMdict_e.xml
@@ -89,15 +122,12 @@ def parse_jmdict() -> None:
 
     click.echo(f"Parsing '{raw_path.name}' with embedded XSLT ...")
 
-    # Load XML from file and XSLT from our embedded string
     xml_doc = etree.parse(str(raw_path))
     xslt_doc = etree.parse(BytesIO(XSLT_TRANSFORM))
     transform = etree.XSLT(xslt_doc)
 
-    # Apply transformation at C-level for speed
     result_tree = transform(xml_doc)
 
-    # Process the simplified text output
     entries = []
     lines = str(result_tree).splitlines()
 
@@ -106,11 +136,12 @@ def parse_jmdict() -> None:
                            item_show_func=lambda x: "") as bar:
         for i, line in enumerate(bar):
             parts = line.split('|')
-            if len(parts) != 4:
+            if len(parts) != 5:
                 continue
 
-            entry_id, kanji_str, kana_str, senses_str = parts
-
+            entry_id, kanji_str, kana_str, pri_str, senses_str = parts
+            pri_list = [p for p in pri_str.split('~') if p]
+            entry_rank = _rank(pri_list)
             senses = []
             for j, sense_part in enumerate(senses_str.split('^')):
                 if not sense_part:
@@ -128,6 +159,7 @@ def parse_jmdict() -> None:
 
                 entries.append({
                     "id": int(entry_id),
+                    "rank": entry_rank,
                     "kanji": [
                         {"text": k, "order": i}
                         for i, k in enumerate(kanji_str.split('~')) if k

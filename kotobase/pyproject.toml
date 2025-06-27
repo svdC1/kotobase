@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kotobase"
-version = "0.2.6"
+version = "0.2.7"
 authors = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
 maintainers = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
 description = "Python package for accessing a comprehensive Japanese language database."

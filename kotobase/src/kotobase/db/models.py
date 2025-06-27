@@ -1,7 +1,7 @@
 """
 This module defines the `kotobase` database schema with `SQLAlchemy`
 """
-
+from __future__ import annotations
 from sqlalchemy import (Column,
                         Integer,
                         String,
@@ -13,45 +13,8 @@ from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
 
+
 # ––––––––––––––––– JMDict ––––––––––––––––
-
-
-class JMDictEntry(Base):
-    """
-    Raw Database JMDictEntry Table
-
-    Attributes:
-      id (int): Row ID
-      kanji (relationship): Relationship to JMDict Kanji Table
-      kana (relationship): Relationship to JMDict Kana Table
-      senses (relationship): Relationship to JMDict Senses Table
-    """
-    __tablename__ = "jmdict_entries"
-    id = Column(
-        Integer,
-        primary_key=True
-        )
-
-    kanji = relationship(
-        "JMDictKanji",
-        back_populates="entry",
-        cascade="all, delete-orphan",
-        order_by="JMDictKanji.order",
-        )
-    kana = relationship(
-        "JMDictKana",
-        back_populates="entry",
-        cascade="all, delete-orphan",
-        order_by="JMDictKana.order",
-        )
-    senses = relationship(
-        "JMDictSense",
-        back_populates="entry",
-        cascade="all, delete-orphan",
-        order_by="JMDictSense.order",
-        )
-
-
 class JMDictKanji(Base):
     """
     Raw Database JMDict Kanji Table
@@ -59,7 +22,7 @@ class JMDictKanji(Base):
     Attributes:
       id (int): Row ID
       entry_id (int): Foreign key to JMDictEntry id
-      order (id): Order of appearence
+      order (int): Order of appearence
       text (str): Kanji Text
       entry (relationship): Relationship to JMDict Entries
     """
@@ -83,7 +46,8 @@ class JMDictKanji(Base):
         )
 
     entry = relationship("JMDictEntry",
-                         back_populates="kanji")
+                         back_populates="kanji"
+                         )
 
     __table_args__ = (Index("ix_jmdict_kanji_text", "text"),)
 
@@ -95,7 +59,7 @@ class JMDictKana(Base):
     Attributes:
       id (int): Row ID
       entry_id (int): Foreign key to JMDictEntry id
-      order (id): Order of appearence
+      order (int): Order of appearence
       text (str): Kana Text
       entry (relationship): Relationship to JMDict Entries
     """
@@ -163,6 +127,50 @@ class JMDictSense(Base):
 
     __table_args__ = (Index("ix_jmdict_gloss", "gloss"),)
 
+
+class JMDictEntry(Base):
+    """
+    Raw Database JMDictEntry Table
+
+    Attributes:
+      id (int): Row ID
+      rank (id): Priority rank
+      kanji (relationship): Relationship to JMDict Kanji Table
+      kana (relationship): Relationship to JMDict Kana Table
+      senses (relationship): Relationship to JMDict Senses Table
+    """
+    __tablename__ = "jmdict_entries"
+    id = Column(
+        Integer,
+        primary_key=True
+        )
+
+    rank = Column(
+        Integer,
+        nullable=False,
+        default=99,
+        index=True
+        )
+
+    kanji = relationship(
+        JMDictKanji,
+        back_populates="entry",
+        cascade="all, delete-orphan",
+        order_by=JMDictKanji.order,
+        )
+    kana = relationship(
+        JMDictKana,
+        back_populates="entry",
+        cascade="all, delete-orphan",
+        order_by=JMDictKana.order,
+        )
+    senses = relationship(
+        JMDictSense,
+        back_populates="entry",
+        cascade="all, delete-orphan",
+        order_by=JMDictSense.order,
+        )
+
 # ––––––––––– Optional FTS5 shadow table ––––––––––
 # Only created when the build script detects sqlite3 and the "fts5" module.
 
@@ -213,7 +221,7 @@ class JMnedictEntry(Base):
         index=True
         )
     translation_type = Column(
-        String(8)
+        String,
     )
     translation = Column(
         Text

@@ -94,6 +94,9 @@ class JMDictRepo:
                     selectinload(orm.JMDictEntry.kanji),
                     selectinload(orm.JMDictEntry.senses),
                 )
+                .order_by(orm.JMDictEntry.rank,
+                          orm.JMDictEntry.id
+                          )
                 .limit(limit)
                 .all()
             )

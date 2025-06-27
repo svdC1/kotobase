@@ -91,7 +91,9 @@ def populate_jmdict(session: SessionType) -> None:
             if item['id'] in seen_ids:
                 continue
             seen_ids.add(item['id'])
-            entries.append({'id': item['id']})
+            entries.append({'id': item['id'],
+                            'rank': item.get('rank', 99)
+                            })
 
             # Kanji Readings
             for k in item.get('kanji', []):

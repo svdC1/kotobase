@@ -11,7 +11,8 @@ from typing import (Any,
                     Dict,
                     Iterable,
                     Callable,
-                    Optional)
+                    Optional
+                    )
 from kotobase.db import models as orm
 
 
@@ -60,15 +61,24 @@ class JMDictEntryDTO(Serializable):
 
     Args:
       id: Integer Database Entry ID.
+      rank: Integer priority rank of entry
       kana: List of Strings representing Kana Readings.
       kanji: List of Strings representig existing Kanji in Entry.
-      senses: List of Dicts in format {'id':int,'order':int,'gloss':str}
+      senses: List of Dicts in format `{'order':int, 'pos': str, 'gloss':str}`
               representing Entry senses.
     """
     id: int
+    rank: int
     kana: List[str] = field(default_factory=list)
     kanji: List[str] = field(default_factory=list)
     senses: List[Dict[str, Any]] = field(default_factory=list)
+
+    def __str__(self):
+        reading = self.kanji[0] if self.kanji else self.kana[0]
+        return f"JMDictEntryDTO[{reading}]"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 @dataclass(slots=True)
@@ -88,6 +98,13 @@ class JMNeDictEntryDTO(Serializable):
     kanji: List[str] = field(default_factory=list)
     translation_type: str = ""
     gloss: List[str] = field(default_factory=list)
+
+    def __str__(self):
+        reading = self.kanji[0] if self.kanji else self.kana[0]
+        return f"JMNeDictEntryDTO[{reading}]"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 @dataclass(slots=True)
@@ -109,6 +126,13 @@ class JLPTVocabDTO(Serializable):
     hiragana: str
     english: str
 
+    def __str__(self):
+        reading = self.kanji if self.kanji else self.kana
+        return f"JLPTVocabDTO[{reading}]"
+
+    def __repr__(self):
+        return self.__str__()
+
 
 @dataclass(slots=True)
 class JLPTKanjiDTO(Serializable):
@@ -124,6 +148,12 @@ class JLPTKanjiDTO(Serializable):
     id: int
     level: int
     kanji: str
+
+    def __str__(self):
+        return f"JLPTKanjiDTO[{self.kanji}]"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 @dataclass(slots=True)
@@ -144,6 +174,12 @@ class JLPTGrammarDTO(Serializable):
     grammar: str
     formation: str
     examples: List[str] = field(default_factory=list)
+
+    def __str__(self):
+        return f"JLPTGrammarDTO[{self.grammar}]"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 @dataclass(slots=True)
@@ -171,18 +207,31 @@ class KanjiDTO(Serializable):
     jlpt_kanjidic: Optional[int]
     jlpt_tanos: Optional[int]
 
+    def __str__(self):
+        return f"KanjiDTO[{self.literal}]"
+
+    def __repr__(self):
+        return self.__str__()
+
 
 @dataclass(slots=True)
 class SentenceDTO(Serializable):
     """
     A Python Dataclass object representing an example
     sentence from the Tatoeba project.
+
     Args:
       id: Integer Database Entry ID.
       text: String of example.
     """
     id: int
     text: str
+
+    def __str__(self):
+        return f"SentenceDTO[{self.id}]"
+
+    def __repr__(self):
+        return self.__str__()
 
 
 @dataclass(slots=True)
@@ -218,6 +267,31 @@ class LookupResult(Serializable):
           bool: True if JLPT is present, False otherwise
         """
         return self.jlpt_vocab is not None or bool(self.jlpt_kanji_levels)
+
+    def filter_entries(self) -> Dict[str, list]:
+        """
+        Convenience function for splitting entries
+        between JMDictEntryDTO and JMNeDictEntryDTO
+
+        Returns:
+          Dict[str, list]: Split entries dictionary of format
+                           `{'jmdict': list, 'jmnedict': list}`
+        """
+        split = {"jmdict": [], "jmnedict": []}
+        if not self.entries:
+            return split
+        for e in self.entries:
+            if isinstance(e, JMDictEntryDTO):
+                split["jmdict"].append(e)
+            elif isinstance(e, JMNeDictEntryDTO):
+                split["jmnedict"].append(e)
+        return split
+
+    def __str__(self):
+        return f"LookupResult[{self.word}]"
+
+    def __repr__(self):
+        return self.__str__()
 
 # Helpers
 
@@ -258,6 +332,7 @@ def map_jmdict(entry: orm.JMDictEntry) -> JMDictEntryDTO:
     """
     return JMDictEntryDTO(
         id=entry.id,
+        rank=entry.rank,
         kana=[k.text for k in entry.kana],
         kanji=[k.text for k in entry.kanji],
         senses=[
@@ -373,9 +448,9 @@ def map_kanjidic(
         literal=row.literal,
         grade=row.grade,
         stroke_count=row.stroke_count,
-        meanings=_split_list(row.meanings, sep=";"),
-        onyomi=_split_list(row.on_readings, sep=";"),
-        kunyomi=_split_list(row.kun_readings, sep=";"),
+        meanings=_split_list(row.meanings, sep=","),
+        onyomi=_split_list(row.on_readings, sep=","),
+        kunyomi=_split_list(row.kun_readings, sep=","),
         jlpt_kanjidic=row.jlpt,
         jlpt_tanos=jlpt_tanos_level,
     )
