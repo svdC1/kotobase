@@ -1,59 +1,138 @@
 # Kotobase
-## ![PyPI - Version](https://img.shields.io/pypi/v/kotobase?pypiBaseUrl=https%3A%2F%2Fpypi.org&style=for-the-badge&logoSize=auto) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/svdC1/kotobase/build_upload_db.yaml?branch=main&style=for-the-badge&label=Database%20Build)
 
-**Kotobase is a Japanese language Python package which provides simple programmatic access to various data sources via a pre-built database which is updated weekly via a GitHub action.**
+A comprehensive, openly-licensed Japanese language database.
 
-## Data Sources
+`Kotobase` aggregates several openly-licensed Japanese language data sources
+into one `SQLite` database and exposes simple programmatic and command line
+access to it
 
-Kotobase uses data from these sources to build its Database.
-
--   [`JMDict`](http://www.edrdg.org/jmdict/j_jmdict.html) : Japanese-Multilingual Dictionary.
-
--   [`JMnedict`](http://www.edrdg.org/enamdict/enamdict_doc.html) : A dictionary of Japanese proper names.
-
--   [`KanjiDic2`](http://www.edrdg.org/kanjidic/kanjd2index_legacy.html) : A comprehensive kanji dictionary.
-
--   [`Tatoeba`](https://tatoeba.org/en/) : A large database of example sentences.
-
--   [`JLPT Lists`](http://www.tanos.co.uk/) : Curated list of Grammar, Vocabulary and Kanji separated by Japanese Language Proficiency Test levels, made available on Jonathan Weller's website.
-
-### Licenses
-
-> The licenses of these data sources and the NOTICE is available at `docs/licenses` in this repository.
-
-## Features
-
--   **Comprehensive Lookups** &rarr; Search for words (kanji, kana, or romaji), kanji, and proper names.
-
--   **Organized Data** &rarr; Get detailed information including readings, senses, parts of speech, kanji stroke counts, meanings, and JLPT levels formatted into Python Data Objects.
-
--   **Example Sentences** &rarr; Find example sentences from Tatoeba that contain the searched query.
-
--   **Wildcard Search** &rarr; Use `*` or `%` for wildcard searches.
-
--   **Command-Line Interface** &rarr; User-friendly CLI for quick lookups from the terminal.
-
--   **Self-Contained** &rarr; All data is stored in a local SQLite database, so it's fast and works offline.
-
--   **Easy Database Management** &rarr; Includes commands to automatically download the latest pre-built database from the public Drive or download source files and build the database locally.
-
-## Installation
-
--   Install the package
+## Install
 
 ```bash
 pip install kotobase
 ```
 
-> This will install the `kotobase` package and its dependencies, and it will also make the `kotobase` command-line tool available in your shell.
+## Get The Database
 
--   Pull the Database from Drive or Build it locally by running of the commands below in the environment you installed kotobase
+???+ abstract "Database"
+    - The compiled database is a `pre-requisite` and is not bundled with the package due to its size
 
-```bash
-# Pull from Drive
-kotobase pull-db
-# Build locally
-kotobase build
-```
+    - The `core` database contains all sources except for the `Kanji Alive` audio clips and is a `~400MB` `SQLite` file
 
-> The database will be downloaded or built internally in the package at `kotobase/src/db/kotobase.db` and will be available for use.
+    - The optional `audio` database adds `~150MB` to that size
+
+    - There are 2 way to get both of them
+
+    === "Pull The Pre-Built Versions"
+        Both databases are rebuilt weekly with updated sources via a [`GitHub Action`](https://github.com/svdC1/kotobase/blob/main/.github/workflows/build_db.yaml) and appended as assets to the [`Latest Kotobase GitHub Release`](https://github.com/svdC1/kotobase/releases/tag/latest)
+        ```bash
+        kotobase db pull  # (1)!
+
+        kotobase db pull --no-audio # (2)!
+        ```
+
+        1. Download The `Core` + `Audio` Databases
+        2. Download Only The `Core` Database
+
+    === "Build Them Locally"
+        You can also easily download the most up-to-date sources and build both databases yourself via the `CLI` in `~2-3` minutes
+        ```bash
+        kotobase db build  # (1)!
+
+        kotobase db build --no-audio  # (2)!
+        ```
+
+        1. Download All Sources & Build The `Core` + `Audio` Databases
+        2. Download All Sources & Build Only The `Core` Database
+
+## Use It
+
+=== "CLI"
+
+    ```bash
+    kotobase lookup all 日本語  # (1)!
+
+    kotobase lookup kanji 語  # (2)!
+    ```
+
+    1. Comprehensive Lookup Across Every Source
+    2. A Single Kanji Profile
+
+=== "Python"
+
+    ```python
+    from kotobase import Kotobase
+
+    kb = Kotobase()
+
+    result = kb("日本語")  # (1)!
+    print(result.to_json())
+
+    kanji = kb.kanji("語")
+    print(kanji.meanings, kanji.onyomi, kanji.kunyomi)
+    ```
+
+    1. Alias For `kb.lookup("日本語")`
+
+## Features
+
+<table>
+  <tr>
+    <td><b>Comprehensive Lookups</b></td>
+    <td>One <code>lookup all</code> Query Aggregates Data From All Souces</td>
+  </tr>
+  <tr>
+    <td><b>Organized Data</b></td>
+    <td>Every Source Is Fully Extracted Into A Normalized <code>SQLite</code> Schema & Exposed As Typed, Serializable <code>DTOs</code></td>
+  </tr>
+    <tr>
+    <td><b>Example Sentences</b></td>
+    <td>Search <code>Tatoeba</code> Example Sentences + Their English Translation By Text </td>
+  </tr>
+    <tr>
+    <td><b>Wildcard Search</b></td>
+    <td>Match Written / Reading Forms With <code>*</code> & <code>%</code> Wildcard Patterns</td>
+  </tr>
+    <tr>
+    <td><b>CLI</b></td>
+    <td>A <code><a href=https://typer.tiangolo.com/ >Typer</a></code> + <code><a href=https://rich.readthedocs.io/en/latest/introduction.html >Rich</a></code> CLI With Readable, Panelled Output & <code>--json</code> For Scripting</td>
+  </tr>
+    <tr>
+    <td><b>Self-Contained</b></td>
+    <td>A Single <code>SQLite</code> <i>(~400MB)</i> File + Optional Audio Pack <i>(~150MB)</i>  With No Server / Network Access Needed At Query Time</td>
+  </tr>
+    <tr>
+    <td><b>Easy Database Management</b></td>
+    <td>Pull <code><a href=https://github.com/svdC1/kotobase/blob/main/.github/workflows/build_db.yaml >Pre-Built</a></code> Databases From GitHub Releases Or Build It Locally + Manage The Cache From The <code>CLI</code></td>
+  </tr>
+</table>
+
+## More Information
+
+
+<div class="grid cards" markdown>
+
+- :material-beaker-check-outline: **[Examples](examples.md)**
+
+    Task-Oriented Python Snippets
+
+- :material-console: **[CLI Reference](cli.md)**
+
+    All `kotobase` Commands
+
+- :material-api: **[API Reference](reference/index.md)**
+
+    Technical Documentation Of The `Kotobase` Wrapper + Data Objects
+
+- :material-book-open-variant: **[Changelog](project/changelog.md)**
+
+    What changed between versions
+
+- :material-api: **[Versioning Policy](project/versioning.md)**
+
+    What The Public API Covers
+
+- :material-license: **[Third-Party Notices](project/notice.md)**
+
+    Source Attribution
+</div>

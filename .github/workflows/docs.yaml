@@ -1,0 +1,55 @@
+name: docs
+
+# Publishes the MkDocs site to GitHub Pages on every published release
+# Requires the repository Pages source to be set to "GitHub Actions"
+# (Settings -> Pages -> Build and deployment -> Source).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Package With Docs Extras
+        run: pip install "./kotobase[docs]"
+
+      - name: Build MkDocs Site
+        run: mkdocs build --strict -f docs-site/mkdocs.yml
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs-site/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy To GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

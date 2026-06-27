@@ -1,0 +1,84 @@
+name: Bug Report
+description: Report a bug in kotobase to help us improve
+title: "[Bug]: "
+labels: ["bug"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for taking the time to file a bug report. Please search
+              [`existing issues`](https://github.com/svdC1/kotobase/issues) first
+              to avoid duplicates.
+
+    - type: dropdown
+      id: surface
+      attributes:
+          label: Surface
+          description: Which part of kotobase does the bug occur in?
+          options:
+              - Public API (`kotobase.api`)
+              - Database Build (`kotobase.db.build`)
+              - Database Access (`UoW / Connection / Repos / ...`)
+              - CLI (`kotobase.cli / kotobase.terminal_output`)
+              - Documentation
+              - CI / Tooling
+              - Other / Not Sure
+      validations:
+          required: true
+
+    - type: input
+      id: version
+      attributes:
+          label: Kotobase Version
+          description: PyPI Version / Output of `kotobase version`
+          placeholder: "0.3.0"
+      validations:
+          required: true
+
+    - type: textarea
+      id: description
+      attributes:
+          label: Description
+          description: A clear and concise description of what the bug is.
+      validations:
+          required: true
+
+    - type: textarea
+      id: reproduction
+      attributes:
+          label: Steps to Reproduce
+          description: Steps to reproduce the behaviour.
+          placeholder: |
+              1. Go to '...'
+              2. Run '...'
+              3. See error
+      validations:
+          required: true
+
+    - type: textarea
+      id: expected
+      attributes:
+          label: Expected Behaviour
+          description: What did you expect to happen?
+      validations:
+          required: true
+
+    - type: textarea
+      id: environment
+      attributes:
+          label: Environment
+          description: The environment in which the bug occurs.
+          value: |
+              - OS:
+              - Python Version:
+      validations:
+          required: false
+
+    - type: textarea
+      id: logs
+      attributes:
+          label: Logs / Additional Context
+          description: Relevant log output, screenshots, or any other context.
+          render: shell
+      validations:
+          required: false

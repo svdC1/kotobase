@@ -1,0 +1,1 @@
+:::kotobase.terminal_output
