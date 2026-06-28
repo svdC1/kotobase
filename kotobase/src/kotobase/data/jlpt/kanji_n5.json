@@ -1,0 +1,476 @@
+[
+  {
+    "kanji": "日",
+    "on": "ニチ ジツ -",
+    "kun": "ひ -び",
+    "english": "day, sun, Japan"
+  },
+  {
+    "kanji": "一",
+    "on": "イチ イツ ヒト.",
+    "kun": "ひと-",
+    "english": "one"
+  },
+  {
+    "kanji": "国",
+    "on": "コク ク",
+    "kun": null,
+    "english": "country"
+  },
+  {
+    "kanji": "人",
+    "on": "ジン ニン -",
+    "kun": "ひと -り",
+    "english": "person"
+  },
+  {
+    "kanji": "年",
+    "on": "ネン ト",
+    "kun": null,
+    "english": "year"
+  },
+  {
+    "kanji": "大",
+    "on": "ダイ タイ - オオ.イ",
+    "kun": "おお- おお.きい",
+    "english": "large, big"
+  },
+  {
+    "kanji": "十",
+    "on": "ジュウ ジッ ジュッ",
+    "kun": "とお",
+    "english": "ten"
+  },
+  {
+    "kanji": "二",
+    "on": "ニ ジ フタタ.",
+    "kun": "ふた ふた.つ",
+    "english": "two"
+  },
+  {
+    "kanji": "本",
+    "on": "ホン モ",
+    "kun": null,
+    "english": "book, present, main, true, real, counter for long things"
+  },
+  {
+    "kanji": "中",
+    "on": "チュウ アタ.",
+    "kun": "なか うち",
+    "english": "in, inside, middle, mean, center"
+  },
+  {
+    "kanji": "長",
+    "on": "チョウ オ",
+    "kun": "なが.い",
+    "english": "long, leader"
+  },
+  {
+    "kanji": "出",
+    "on": "シュツ スイ イ.ダ",
+    "kun": "で.る -で だ.す -だ.す い.でる",
+    "english": "exit, leave"
+  },
+  {
+    "kanji": "三",
+    "on": "サン ゾウ ミッ.",
+    "kun": "み み.つ",
+    "english": "three"
+  },
+  {
+    "kanji": "時",
+    "on": "ジ -ド",
+    "kun": "とき",
+    "english": "time, hour"
+  },
+  {
+    "kanji": "行",
+    "on": "コウ ギョウ アン オコ.ナ",
+    "kun": "い.く ゆ.く -ゆ.き -ゆき -い.き - いき おこな.う",
+    "english": "going, journey"
+  },
+  {
+    "kanji": "見",
+    "on": "ケン",
+    "kun": "み.る み.える み.せる",
+    "english": "see, hopes, chances, idea, opinion, look at, visible"
+  },
+  {
+    "kanji": "月",
+    "on": "ゲツ ガツ ツ",
+    "kun": null,
+    "english": "month, moon"
+  },
+  {
+    "kanji": "後",
+    "on": "ゴ コウ オク.レ",
+    "kun": "のち うし.ろ うしろ あと",
+    "english": "behind, back, later"
+  },
+  {
+    "kanji": "前",
+    "on": "ゼン -マ",
+    "kun": "まえ",
+    "english": "in front, before"
+  },
+  {
+    "kanji": "生",
+    "on": "セイ ショウ -",
+    "kun": "い.きる い.かす い.ける う.まれる う.まれ うまれ う.む お.う は.える は.やす き なま なま- な.る",
+    "english": "life, genuine, birth"
+  },
+  {
+    "kanji": "五",
+    "on": "ゴ イツ.",
+    "kun": "いつ",
+    "english": "five"
+  },
+  {
+    "kanji": "間",
+    "on": "カン ケン",
+    "kun": "あいだ ま あい",
+    "english": "interval, space"
+  },
+  {
+    "kanji": "上",
+    "on": "ジョウ ショウ シャン ヨ.",
+    "kun": "うえ -うえ うわ- かみ あ.げる - あ.げる あ.がる -あ.がる あ.がり - あ.がり のぼ.る のぼ.り のぼ.",
+    "english": "above, up"
+  },
+  {
+    "kanji": "東",
+    "on": "トウ ヒガ",
+    "kun": null,
+    "english": "east"
+  },
+  {
+    "kanji": "四",
+    "on": "シ ヨ",
+    "kun": "よ よ.つ よっ.つ",
+    "english": "four"
+  },
+  {
+    "kanji": "今",
+    "on": "コン キン イ",
+    "kun": null,
+    "english": "now"
+  },
+  {
+    "kanji": "金",
+    "on": "キン コン ゴン -ガ",
+    "kun": "かね かな-",
+    "english": "gold"
+  },
+  {
+    "kanji": "九",
+    "on": "キュウ ク ココノ.",
+    "kun": "ここの",
+    "english": "nine"
+  },
+  {
+    "kanji": "入",
+    "on": "ニュウ ジュ ハイ.",
+    "kun": "い.る -い.る -い.り い.れる -い.れ",
+    "english": "enter, insert"
+  },
+  {
+    "kanji": "学",
+    "on": "ガク マナ.",
+    "kun": null,
+    "english": "study, learning, science"
+  },
+  {
+    "kanji": "高",
+    "on": "コウ タカ.メ",
+    "kun": "たか.い たか -だか たか.まる",
+    "english": "tall, high, expensive"
+  },
+  {
+    "kanji": "円",
+    "on": "エン マロ.ヤ",
+    "kun": "まる.い まる まど まど.か",
+    "english": "circle, yen, round"
+  },
+  {
+    "kanji": "子",
+    "on": "シ ス ツ",
+    "kun": "こ -こ",
+    "english": "child, sign of the rat, 11PM- 1AM, first sign of Chinese zodiac"
+  },
+  {
+    "kanji": "外",
+    "on": "ガイ ゲ",
+    "kun": "そと ほか はず.す はず.れる と",
+    "english": "outside"
+  },
+  {
+    "kanji": "八",
+    "on": "ハチ ヨ",
+    "kun": "や や.つ やっ.つ",
+    "english": "eight"
+  },
+  {
+    "kanji": "六",
+    "on": "ロク リク ム",
+    "kun": "む む.つ むっ.つ",
+    "english": "six"
+  },
+  {
+    "kanji": "下",
+    "on": "カ ゲ オ.リ",
+    "kun": "した しも もと さ.げる さ.がる くだ.る くだ.り くだ.す -くだ.す くだ.さる お.ろす",
+    "english": "below, down, descend, give, low, inferior"
+  },
+  {
+    "kanji": "来",
+    "on": "ライ タイ",
+    "kun": "く.る きた.る きた.す き.たす き.たる き",
+    "english": "come, due, next, cause, become"
+  },
+  {
+    "kanji": "気",
+    "on": "キ ケ",
+    "kun": "いき",
+    "english": "spirit, mind"
+  },
+  {
+    "kanji": "小",
+    "on": "ショウ",
+    "kun": "ちい.さい こ- お- さ",
+    "english": "little, small"
+  },
+  {
+    "kanji": "七",
+    "on": "シチ ナ",
+    "kun": "なな なな.つ",
+    "english": "seven"
+  },
+  {
+    "kanji": "山",
+    "on": "サン セン ヤ",
+    "kun": null,
+    "english": "mountain"
+  },
+  {
+    "kanji": "話",
+    "on": "ワ",
+    "kun": "はな.す はなし",
+    "english": "tale, talk"
+  },
+  {
+    "kanji": "女",
+    "on": "ジョ ニョ ニョウ",
+    "kun": "おんな",
+    "english": "woman, female"
+  },
+  {
+    "kanji": "北",
+    "on": "ホク キ",
+    "kun": null,
+    "english": "north"
+  },
+  {
+    "kanji": "午",
+    "on": "ゴ",
+    "kun": "うま",
+    "english": "noon, sign of the horse, 11AM-1PM, seventh sign of Chinese zodiac"
+  },
+  {
+    "kanji": "百",
+    "on": "ヒャク ビャク モ",
+    "kun": null,
+    "english": "hundred"
+  },
+  {
+    "kanji": "書",
+    "on": "ショ -ガ",
+    "kun": "か.く -が.き",
+    "english": "write"
+  },
+  {
+    "kanji": "先",
+    "on": "セン マ.",
+    "kun": "さき",
+    "english": "before, ahead, previous, future, precedence"
+  },
+  {
+    "kanji": "名",
+    "on": "メイ ミョウ -",
+    "kun": "な",
+    "english": "name, noted, distinguished, reputation"
+  },
+  {
+    "kanji": "川",
+    "on": "セン カ",
+    "kun": null,
+    "english": "stream, river"
+  },
+  {
+    "kanji": "千",
+    "on": "セン",
+    "kun": null,
+    "english": "thousand"
+  },
+  {
+    "kanji": "水",
+    "on": "スイ",
+    "kun": "みず みず",
+    "english": "water"
+  },
+  {
+    "kanji": "半",
+    "on": "ハン ナカ.",
+    "kun": null,
+    "english": "half, middle, odd number, semi-, part-"
+  },
+  {
+    "kanji": "男",
+    "on": "ダン ナン",
+    "kun": "おとこ",
+    "english": "male"
+  },
+  {
+    "kanji": "西",
+    "on": "セイ サイ ス ニ",
+    "kun": null,
+    "english": "west, Spain"
+  },
+  {
+    "kanji": "電",
+    "on": "デン",
+    "kun": null,
+    "english": "electricity"
+  },
+  {
+    "kanji": "校",
+    "on": "コウ キョ",
+    "kun": null,
+    "english": "exam, school, printing, proof, correction"
+  },
+  {
+    "kanji": "語",
+    "on": "ゴ",
+    "kun": "かた.る かた.らう",
+    "english": "word, speech, language"
+  },
+  {
+    "kanji": "土",
+    "on": "ド ト ツ",
+    "kun": null,
+    "english": "soil, earth, ground, Turkey"
+  },
+  {
+    "kanji": "木",
+    "on": "ボク モク",
+    "kun": "き こ",
+    "english": "tree, wood"
+  },
+  {
+    "kanji": "聞",
+    "on": "ブン モン",
+    "kun": "き.く き.こえる",
+    "english": "hear, ask, listen"
+  },
+  {
+    "kanji": "食",
+    "on": "ショク ジキ ハ.",
+    "kun": "く.う く.らう た.べる",
+    "english": "eat, food"
+  },
+  {
+    "kanji": "車",
+    "on": "シャ クル",
+    "kun": null,
+    "english": "car"
+  },
+  {
+    "kanji": "何",
+    "on": "カ",
+    "kun": "なに なん なに- なん",
+    "english": "what"
+  },
+  {
+    "kanji": "南",
+    "on": "ナン ナ ミナ",
+    "kun": null,
+    "english": "south"
+  },
+  {
+    "kanji": "万",
+    "on": "マン バン ヨロ",
+    "kun": null,
+    "english": "ten thousand"
+  },
+  {
+    "kanji": "毎",
+    "on": "マイ -ゴト.",
+    "kun": "ごと",
+    "english": "every"
+  },
+  {
+    "kanji": "白",
+    "on": "ハク ビャク シロ.",
+    "kun": "しろ しら-",
+    "english": "white"
+  },
+  {
+    "kanji": "天",
+    "on": "テン",
+    "kun": "あまつ あめ あま",
+    "english": "heavens, sky, imperial"
+  },
+  {
+    "kanji": "母",
+    "on": "ボ",
+    "kun": "はは も",
+    "english": "mama, mother"
+  },
+  {
+    "kanji": "火",
+    "on": "カ",
+    "kun": "ひ -び ほ-",
+    "english": "fire"
+  },
+  {
+    "kanji": "右",
+    "on": "ウ ユウ ミ",
+    "kun": null,
+    "english": "right"
+  },
+  {
+    "kanji": "読",
+    "on": "ドク トク トウ -ヨ.",
+    "kun": "よ.む",
+    "english": "read"
+  },
+  {
+    "kanji": "友",
+    "on": "ユウ ト",
+    "kun": null,
+    "english": "friend"
+  },
+  {
+    "kanji": "左",
+    "on": "サ シャ ヒダ",
+    "kun": null,
+    "english": "left"
+  },
+  {
+    "kanji": "休",
+    "on": "キュウ",
+    "kun": "やす.む やす.まる やす.める",
+    "english": "rest, day off, retire, sleep"
+  },
+  {
+    "kanji": "父",
+    "on": "フ",
+    "kun": "ちち",
+    "english": "father"
+  },
+  {
+    "kanji": "雨",
+    "on": "ウ",
+    "kun": "あめ あま- -さめ",
+    "english": "rain"
+  }
+]

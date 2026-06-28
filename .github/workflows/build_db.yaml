@@ -1,0 +1,61 @@
+name: build-db
+
+# Builds the core and audio databases, compresses them to zstandard archives,
+# and uploads them as release assets. On a published release the assets attach
+# to that release. On the weekly schedule and manual runs they replace the
+# assets on the latest release, which is the one `kotobase db pull` downloads.
+
+on:
+  release:
+    types: [published]
+  schedule:
+    # Every Sunday night (03:00 UTC)
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-db:
+    runs-on: ubuntu-latest
+    env:
+      KOTOBASE_CACHE_DIR: ${{ github.workspace }}/.kotobase-cache
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Package
+        run: pip install ./kotobase
+
+      - name: Build Core And Audio Databases
+        run: kotobase db build --force --with-audio
+
+      - name: Compress Release Assets
+        run: |
+          python -c "from kotobase.db.builder import compress, config; compress(config.db_path()); compress(config.audio_db_path())"
+
+      - name: Resolve Target Release Tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Databases To Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.tag.outputs.tag }}" \
+            "$KOTOBASE_CACHE_DIR/kotobase.db.zst" \
+            "$KOTOBASE_CACHE_DIR/kotobase-audio.db.zst" \
+            --clobber --repo "$GITHUB_REPOSITORY"

@@ -1,0 +1,110 @@
+/*
+ * Kotobase's Custom Material For MKDocs Theme
+ */
+
+:root {
+  --kb-blue: #5e748a;
+  --kb-blue-light: #8aa4bd;
+  --kb-blue-dark: #3f5468;
+  --kb-green: #6f9c71;
+  --kb-green-light: #86b487;
+  --kb-green-dark: #557a57;
+  --kb-charcoal: #282828;
+}
+
+/* --- Primary: Header / Nav / Footer Accents --- */
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: var(--kb-blue);
+  --md-primary-fg-color--light: var(--kb-blue-light);
+  --md-primary-fg-color--dark: var(--kb-blue-dark);
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: hsla(0, 0%, 100%, 0.7);
+}
+
+/* --- Accent: Hover / Focus / Active States --- */
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: #4f7aa6;
+  --md-accent-fg-color--transparent: rgba(79, 122, 166, 0.1);
+}
+
+/* --- Dark Scheme --- */
+[data-md-color-scheme="slate"] {
+  --md-hue: 213;
+  --md-typeset-a-color: var(--kb-blue-light);
+}
+
+[data-md-color-scheme="slate"][data-md-color-accent="custom"] {
+  --md-accent-fg-color: #8fb4d8;
+  --md-accent-fg-color--transparent: rgba(143, 180, 216, 0.1);
+}
+
+/* --- Secondary: Brand Green --- */
+::selection {
+  background: var(--kb-green);
+  color: #ffffff;
+}
+
+[data-md-color-scheme="slate"] ::selection {
+  background: var(--kb-green-dark);
+}
+
+/* Tie Active Nav Item To The Brand */
+.md-nav__link--active,
+.md-nav__item--active > .md-nav__link {
+  color: var(--md-primary-fg-color);
+  font-weight: 600;
+}
+
+.md-nav__item--active > .md-nav__link.md-nav__link--active {
+  box-shadow: inset 2px 0 0 var(--kb-green);
+  padding-left: 0.6rem;
+}
+
+/* Content Links Shift To Accent Color On Hover */
+.md-typeset a {
+  text-decoration: none;
+  transition: color 125ms;
+}
+
+.md-typeset a:hover {
+  color: var(--md-accent-fg-color);
+  text-decoration: none;
+}
+
+/* --- Polish --- */
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Round Logog So It Sits Cleanly On Header */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  border-radius: 0.2rem;
+}
+
+/* Softer Corners On Code Blocks / Tables */
+.md-typeset pre > code,
+.md-typeset .highlight > pre {
+  border-radius: 0.3rem;
+}
+
+.md-typeset table:not([class]) {
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+}
+
+/* Brand-Tinted Scrollbar */
+[data-md-color-scheme="slate"] {
+  scrollbar-color: var(--kb-blue) transparent;
+}
+
+/* Inline Code Picks Up Faint Tint Over Default Surface */
+.md-typeset code {
+  border-radius: 0.2rem;
+}

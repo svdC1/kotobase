@@ -1,0 +1,86 @@
+name: release
+
+# Builds the sdist and wheel and publishes them to PyPI on a published release,
+# using PyPI Trusted Publishing (OIDC, no API token). Publishing is gated on the
+# quality checks passing.
+#
+# One-time setup:
+#   - Register this repository and the `release.yaml` workflow as a trusted
+#     publisher for the `kotobase` project on PyPI.
+#   - Create a `pypi` environment in the repository settings.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kotobase
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Package With Dev Extras
+        run: pip install -e ".[dev]"
+
+      - name: Ruff - Lint
+        run: ruff check src/
+
+      - name: Ruff - Format
+        run: ruff format --check src/
+
+      - name: Mypy
+        run: mypy src/
+
+  build:
+    needs: quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kotobase
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Build Sdist And Wheel
+        run: |
+          python -m pip install build
+          python -m build
+
+      - name: Upload Distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: kotobase/dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/kotobase
+    permissions:
+      id-token: write
+    steps:
+      - name: Download Distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Publish To PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

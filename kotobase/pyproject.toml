@@ -4,30 +4,111 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kotobase"
-version = "0.2.7"
+version = "0.3.0"
 authors = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
 maintainers = [{ name = "svdc", email = "svdc1mail@gmail.com" }]
-description = "Python package for accessing a comprehensive Japanese language database."
-keywords = ["Japanese", "Dictionary", "Language"]
-readme = "README.md"
-requires-python = ">=3.9"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
-    "Intended Audience :: Developers",
+description = "A comprehensive, openly-licensed Japanese language database"
+keywords = [
+    "Japanese",
+    "Dictionary",
+    "Language",
+    "JMdict",
+    "Kanji",
+    "JLPT",
+    "Tatoeba",
 ]
+readme = "README.md"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
-dependencies = ["requests", "sqlalchemy", "alembic", "lxml", "click", "gdown"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Topic :: Text Processing :: Linguistic",
+    "Typing :: Typed",
+]
+dependencies = [
+    "sqlalchemy>=2.0",
+    "typer>=0.12",
+    "rich>=13.0",
+    "requests>=2.31",
+    "zstandard>=0.22",
+    "platformdirs>=4.0",
+    "lxml>=5.0"
+]
+
+[project.optional-dependencies]
+# Documentation Site
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+    "mkdocs-autorefs>=1.2",
+    "mkdocs-awesome-nav",
+
+]
+# Development
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "coverage>=7.6",
+    "types-requests",
+    "types-lxml",
+]
 
 [project.scripts]
-kotobase = "kotobase.cli:main"
+kotobase = "kotobase.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/svdC1/kotobase"
+Documentation = "https://svdc1.github.io/kotobase/"
+Repository = "https://github.com/svdC1/kotobase"
 Issues = "https://github.com/svdC1/kotobase/issues"
+Changelog = "https://svdc1.github.io/kotobase/project/changelog/"
 
-[tool.setuptools]
-include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# Ship the PEP 561 marker and the centralized `data` sub-package
+kotobase = ["py.typed", "data/**/*"]
+
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+src = ["src"]
+extend-exclude = ["docs-site"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+strict = true
+warn_unreachable = true
+pretty = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -1,344 +1,901 @@
 """
-This module defines the kotobase CLI implementation using
-the Click module.
+Defines the Kotobase `CLI` built on `Typer` and rendered with `Rich`
+
+
+info: Command Groups
+    - Query commands call the [`Kotobase`][kotobase.api.Kotobase] wrapper and
+      either pretty-print the result or emit machine readable JSON (`--json`)
+
+    - Build and distribution commands defer to the
+      [`Build Piepline`][kotobase.db.builder]
+
+    - Commands to manage the package's cache directory which holds the
+      database files and build artifacts
 """
+
 from __future__ import annotations
-import click
+
+import functools
+import io
+import json
+import shutil
 import sys
-from typing import Union
-from kotobase.api import Kotobase
-from kotobase.db_builder.build_database import build as build_db_command
-from kotobase.db_builder.pull import pull_db as pull_db_command
-from kotobase.core.datatypes import (JMDictEntryDTO,
-                                     JMNeDictEntryDTO,
-                                     KanjiDTO,
-                                     JLPTVocabDTO,
-                                     JLPTGrammarDTO)
+from collections.abc import Callable
+from pathlib import Path
+from typing import Annotated, Any, ParamSpec, TypeVar
+
+import typer
+
+from . import __version__
+from . import terminal_output as out
+from .api import Kotobase
+from .db import builder
+from .db.connection import AudioDatabaseNotFoundError, DatabaseNotFoundError
+from .terminal_output import THEMED_CONSOLE
+
+# --- App Definition ---
+
+app = typer.Typer(
+    name="kotobase",
+    add_completion=False,
+    no_args_is_help=True,
+    help="Kotobase, a comprehensive Japanese language database",
+)
+
+lookup_app = typer.Typer(
+    name="lookup",
+    no_args_is_help=True,
+    add_completion=False,
+    help="Query The Kotobase Database",
+)
+
+db_app = typer.Typer(
+    name="db",
+    no_args_is_help=True,
+    add_completion=False,
+    help="Build The Kotobase Database Locally Or Pull A Pre-Built One",
+)
+
+cache_app = typer.Typer(
+    name="cache",
+    no_args_is_help=True,
+    add_completion=False,
+    help=(
+        "Manage The Cache Directory In Which The Database And Build Artifacts "
+        "Are Stored"
+    ),
+)
+
+app.add_typer(lookup_app)
+app.add_typer(db_app)
+app.add_typer(cache_app)
 
 
-# ────────────────────────────────────────────────────────────────────────
-#  Helpers
-# ────────────────────────────────────────────────────────────────────────
+# --- Helpers ---
 
-kb = Kotobase()
+KB = Kotobase()
+"""
+Shared [`Kotobase`][kotobase.api.Kotobase] instance which executes query
+commands
+"""
 
-
-def bullet(text, indent=2):
-    try:
-        click.echo(" " * indent + "• " + f"{text}")
-    except Exception as e:
-        click.secho(f"Error in Data Conversion: {e}",
-                    fg="red",
-                    err=True
-                    )
-        sys.exit(1)
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 
-def section(text, indent=2, bln=False, color="green", **sechokw):
-    try:
-        fmt = " " * indent + f"[{text}]"
-        if bln:
-            fmt = f"\n{fmt}\n"
-        click.secho(fmt, fg=color, **sechokw)
-    except Exception as e:
-        click.secho(f"Error in Data Conversion: {e}",
-                    fg="red",
-                    err=True
-                    )
-        sys.exit(1)
+def _guard_no_db(func: Callable[_P, _R]) -> Callable[_P, _R]:
+    """
+    CLI command decorator which displays a user-friendly error message and
+    raises `typer.Exit` when the `kotobase.db` file doesn't exist in the cache
+    directory
+
+    Args:
+        func (Callable[_P, _R]): The CLI command to wrap
+
+    Returns:
+        The wrapped command function with all its metadata preserved
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        try:
+            return func(*args, **kwargs)
+        except DatabaseNotFoundError as e:
+            db = (
+                "Audio"
+                if isinstance(e, AudioDatabaseNotFoundError)
+                else "Core"
+            )
+
+            THEMED_CONSOLE.print(
+                f"[danger]⊗ Couldn't Find The {db} Database -> Run [/]"
+                f"[heading]kotobase db pull[/][danger] Or "
+                f"[/][heading]kotobase db build[/]"
+            )
+            raise typer.Exit(code=1) from None
+
+    return wrapper
 
 
-def entry_head(DTO: Union[JMDictEntryDTO, JMNeDictEntryDTO]):
-    if isinstance(DTO, JMDictEntryDTO):
-        section("JMDict", bln=True, indent=0)
-        k_color = "green"
-    elif isinstance(DTO, JMNeDictEntryDTO):
-        section("JMNeDict", bln=True, indent=0, color="bright_green")
-        k_color = "bright_green"
-    if DTO.kanji:
-        section(" / ".join(DTO.kanji), color="magenta")
-        if DTO.kana:
-            section("Kana", indent=2, color=k_color)
-            for kana in DTO.kana:
-                bullet(kana, indent=4)
+def _to_json(obj: Any) -> str:
+    """
+    Serialize a result object, or a list of them, to `JSON` text preserving
+    non-ascii characters using `json.dumps`
+
+    Args:
+        obj (Any): A data transfer object, a list of them, or a plain value
+
+    Returns:
+        The object encoded as a `JSON` string
+    """
+    if isinstance(obj, list):
+        return json.dumps(
+            [o.to_dict() if hasattr(o, "to_dict") else o for o in obj],
+            ensure_ascii=False,
+        )
+
+    if hasattr(obj, "to_json"):
+        return str(obj.to_json())
+
+    return json.dumps(obj, ensure_ascii=False)
+
+
+def _path_size(path: Path) -> int:
+    """
+    Compute the total size in bytes of a file or directory tree
+
+    Args:
+        path (Path): The file or directory to measure
+
+    Returns:
+        The total size in bytes, or 0 when the path does not exist
+    """
+    if path.is_dir():
+        return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
+    if path.is_file():
+        return path.stat().st_size
+    return 0
+
+
+def _kanji_find_title(
+    stroke: int | None,
+    grade: int | None,
+    skip: str | None,
+    freq: int | None,
+    level: int | None,
+) -> str:
+    """
+    Build a Title Cased description of an active kanji search
+
+    Args:
+        stroke (int | None): Required stroke count
+        grade (int | None): Required school grade
+        skip (str | None): Required SKIP code
+        freq (int | None): Maximum frequency rank
+        level (int | None): Required JLPT level
+
+    Returns:
+        A description such as `Kanji · 5 Strokes · N5`
+    """
+    parts = ["Kanji"]
+    if stroke is not None:
+        parts.append(f"{stroke} Strokes")
+    if grade is not None:
+        parts.append(f"Grade {grade}")
+    if skip is not None:
+        parts.append(f"SKIP {skip}")
+    if freq is not None:
+        parts.append(f"Freq ≤ {freq}")
+    if level is not None:
+        parts.append(f"N{level}")
+    return " · ".join(parts)
+
+
+# --- Root Commands ---
+
+
+@app.command(name="version")
+def version() -> None:
+    """
+    Prints The Installed Kotobase Version
+    """
+    THEMED_CONSOLE.print(f"[heading]kotobase[/] [info]{__version__}[/]")
+
+
+# --- Lookup Commands ---
+
+
+@lookup_app.command(name="all")
+@_guard_no_db
+def lookup_all(
+    query: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="Word In Kana / Kanji Or A Wildcard Pattern (-w)",
+        ),
+    ],
+    names: Annotated[
+        bool,
+        typer.Option(
+            "-n",
+            "--names",
+            help="Include Proper Name Results From JMNedict",
+        ),
+    ] = False,
+    wildcard: Annotated[
+        bool,
+        typer.Option(
+            "-w",
+            "--wildcard",
+            help="Treat * And % As Wildcards In 'query'",
+        ),
+    ] = False,
+    sentence_limit: Annotated[
+        int,
+        typer.Option(
+            "-sl",
+            "--sentence-limit",
+            help="Number Of Tatoeba Example Sentences To Show",
+        ),
+    ] = 5,
+    labels: Annotated[
+        bool,
+        typer.Option(
+            "-l",
+            "--labels",
+            help="Expand JMDict / JMNedcit Tag Codes To Their Descriptions",
+        ),
+    ] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format The Result As JSON",
+        ),
+    ] = False,
+) -> None:
+    """
+    Run A Comprehensive Database Lookup For `query` Across All Data Sources
+    """
+    result = KB.lookup(
+        query,
+        wildcard=wildcard,
+        include_names=names,
+        sentence_limit=sentence_limit,
+        with_labels=labels,
+    )
+    if as_json:
+        typer.echo(_to_json(result))
+        return
+    out.render_lookup(result, with_names=names)
+
+
+@lookup_app.command(name="kanji")
+@_guard_no_db
+def lookup_kanji(
+    literal: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="A Single Kanji Character",
+        ),
+    ],
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format The Result As JSON",
+        ),
+    ] = False,
+) -> None:
+    """
+    Display All Available Information For A Single Kanji Literal
+    """
+    result = KB.kanji(literal)
+    if as_json:
+        typer.echo(_to_json(result))
+        return
+    if result is None:
+        out.render_no_results(literal)
+        return
+    out.render_kanji(result)
+
+
+@lookup_app.command(name="jlpt")
+@_guard_no_db
+def lookup_jlpt(
+    word: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="Word Or Kanji",
+        ),
+    ],
+) -> None:
+    """
+    Show JLPT Levels For A Word And Its Kanji
+    """
+    out.render_word_jlpt(KB.lookup(word))
+
+
+@lookup_app.command(name="kanji-find")
+@_guard_no_db
+def lookup_find_kanji(
+    stroke: Annotated[
+        int | None,
+        typer.Option(
+            "-s",
+            "--stroke",
+            help="Required Number Of Strokes",
+        ),
+    ] = None,
+    grade: Annotated[
+        int | None,
+        typer.Option(
+            "-g",
+            "--grade",
+            help="Required School Grade In Which It's Learned",
+        ),
+    ] = None,
+    skip: Annotated[
+        str | None,
+        typer.Option(
+            "--skip",
+            help="SKIP Code",
+        ),
+    ] = None,
+    freq: Annotated[
+        int | None,
+        typer.Option(
+            "-f",
+            "--freq",
+            help="Maximum Newspaper Frequency Rank",
+        ),
+    ] = None,
+    level: Annotated[
+        int | None,
+        typer.Option(
+            "--jlpt",
+            help="Required JLPT Level In Tanos List",
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        typer.Option(
+            "-l",
+            "--limit",
+            help="Maximum Number Of Results To Display",
+        ),
+    ] = 30,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format The Result As JSON",
+        ),
+    ] = False,
+) -> None:
+    """
+    Search A Kanji By Its Stroke Count, Grade, SKIP Code, Frequency Or JLPT
+    Level
+    """
+    if skip is not None:
+        results = KB.kanji_by_skip(skip, limit=limit)
     else:
-        if DTO.kana:
-            section(" / ".join(DTO.kana), color="magenta")
+        results = KB.search_kanji(
+            stroke_count=stroke,
+            grade=grade,
+            freq_max=freq,
+            jlpt=level,
+            limit=limit,
+        )
+    if as_json:
+        typer.echo(_to_json(results))
+        return
+    out.render_kanji_table(
+        results,
+        title=_kanji_find_title(stroke, grade, skip, freq, level),
+    )
 
 
-def handle_jmdict(DTO: JMDictEntryDTO):
-    entry_head(DTO)
-    if DTO.senses:
-        for s in DTO.senses:
-            order = s.get("order", "")
-            pos = s.get("pos", "")
-            gloss = s.get("gloss", "")
-            section(order, indent=2)
-            bullet(f"Part of Speech : {pos}".strip(), indent=4)
-            bullet(f"Gloss: {gloss}".strip(), indent=4)
-
-
-def handle_jmnedict(DTO: JMNeDictEntryDTO):
-    entry_head(DTO)
-    if DTO.translation_type:
-        section("Translation Type", indent=2, color="bright_green")
-        bullet(DTO.translation_type, indent=4)
-    if DTO.gloss:
-        section("Gloss", indent=2, color="bright_green")
-        for g in DTO.gloss:
-            bullet(g, indent=4)
-
-
-def handle_kanji(DTO: KanjiDTO):
-    # --- Literal ---
-    section(DTO.literal, color="magenta", bold=True, bln=True)
-    # --- JLPT ---
-    if hasattr(DTO, "jlpt_kanjidic") and DTO.jlpt_kanjidic:
-        section("JLPT - Kanjidic", indent=2)
-        bullet(f"N{DTO.jlpt_kanjidic}", indent=4)
-    if hasattr(DTO, "jlpt_tanos") and DTO.jlpt_tanos:
-        section("JLPT - Tanos", color="bright_green", indent=2)
-        bullet(f"N{DTO.jlpt_tanos}", indent=4)
-    # --- Other Kanjidic Info ---
-    if DTO.onyomi:
-        section("Onyomi", indent=2)
-        for on in DTO.onyomi:
-            bullet(on, indent=4)
-    if DTO.kunyomi:
-        section("Kunyomi", indent=2)
-        for kun in DTO.kunyomi:
-            bullet(kun, indent=4)
-    if DTO.stroke_count:
-        section("Stroke Count", indent=2)
-        bullet(str(DTO.stroke_count), indent=4)
-    if hasattr(DTO, "grade") and DTO.grade:
-        section("Grade", indent=2)
-        bullet(str(DTO.grade), indent=4)
-    if DTO.meanings:
-        section("Meanings", indent=2)
-        for m in DTO.meanings:
-            bullet(m, indent=4)
-
-
-def handle_jlpt_vocab(DTO: JLPTVocabDTO):
-    if DTO.level:
-        section("Level", indent=2)
-        bullet(str(DTO.level), indent=4)
-    if DTO.kanji:
-        section("Kanji", indent=2)
-        bullet(DTO.kanji, indent=4)
-    if DTO.level:
-        section("Hiragana", indent=2)
-        bullet(DTO.hiragana, indent=4)
-    if DTO.english:
-        section("English", indent=2)
-        bullet(DTO.english, indent=4)
-
-
-def handle_jlpt_grammar(DTO: JLPTGrammarDTO):
-    if DTO.level:
-        section("Level", indent=2)
-        bullet(str(DTO.level), indent=4)
-    if DTO.grammar:
-        section("Grammar", indent=2)
-        bullet(DTO.grammar, indent=4)
-    if DTO.formation:
-        section("Formation", indent=2)
-        bullet(DTO.formation, indent=4)
-    if DTO.examples:
-        section("Examples", indent=2)
-        for ex in DTO.examples:
-            bullet(ex, indent=4)
-# ────────────────────────────────────────────────────────────────────────
-#  Root group
-# ────────────────────────────────────────────────────────────────────────
-
-
-@click.group(help="Kotobase – Japanese lexical database CLI")
-def main():
-    pass
-
-
-# ────────────────────────────────────────────────────────────────────────
-#  lookup  <word>
-# ────────────────────────────────────────────────────────────────────────
-
-@main.command()
-@click.argument("word")
-@click.option("-n",
-              "--names",
-              is_flag=True,
-              help="Include JMnedict names"
-              )
-@click.option("-w",
-              "--wildcard",
-              is_flag=True,
-              help="Treat '*'/'%' as wildcards"
-              )
-@click.option("-s",
-              "--sentences",
-              default=5,
-              show_default=True,
-              help="Number of example sentences to display (0 = none)"
-              )
-@click.option("--json-out",
-              "-j",
-              is_flag=True,
-              help="Dump raw JSON result"
-              )
-def lookup(word: str,
-           names: bool,
-           wildcard: bool,
-           sentences: int,
-           json_out: bool
-           ):
+@lookup_app.command(name="radicals")
+@_guard_no_db
+def lookup_radicals(
+    components: Annotated[
+        list[str] | None,
+        typer.Argument(
+            help="Radicals To Require, Or None To List Every Radical",
+        ),
+    ] = None,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format Results As JSON",
+        ),
+    ] = False,
+) -> None:
     """
-    Comprehensive dictionary lookup.
+    List Kanji Radicals, Or Find Kanji That Contain Every Given Radical
     """
-    try:
-        result = kb.lookup(word,
-                           wildcard=wildcard,
-                           include_names=names,
-                           sentence_limit=sentences)
-
-        if json_out:
-            click.echo(result.to_json())
+    if components:
+        matches = KB.by_radicals(components)
+        if as_json:
+            typer.echo(_to_json(matches))
             return
-
-        # ---------- JMdict / JMnedict ----------
-        click.secho("\n[Dictionary Entries]", fg="cyan", bold=True)
-        if result.entries:
-            for ent in result.entries:
-                if isinstance(ent, JMDictEntryDTO):
-                    handle_jmdict(ent)
-                elif isinstance(ent, JMNeDictEntryDTO):
-                    handle_jmnedict(ent)
-        else:
-            click.echo("No Entries")
-
-        # ---------- Kanji ----------
-        if result.kanji:
-            click.secho("\n[Kanji Breakdown]", fg="cyan", bold=True)
-            for kan in result.kanji:
-                handle_kanji(kan)
-
-        # ---------- JLPT vocab ----------
-        if result.jlpt_vocab:
-            click.secho("\n[Tanos JLPT Vocabulary]", fg="cyan", bold=True)
-            handle_jlpt_vocab(result.jlpt_vocab)
-
-        # ---------- JLPT grammar ----------
-        if result.jlpt_grammar:
-            click.secho("\n[Tanos JLPT Grammar]", fg="cyan", bold=True)
-            for g in result.jlpt_grammar:
-                handle_jlpt_grammar(g)
-        # ---------- Sentences ----------
-        if sentences:
-            click.secho("\n[Example Sentences]", fg="cyan", bold=True)
-            if result.examples:
-                for sen in result.examples[:sentences]:
-                    bullet(sen.text)
-            else:
-                click.echo("No Examples Found")
-    except Exception as e:
-        click.secho(f"Error During Lookup: {e}",
-                    fg="red",
-                    err=True
-                    )
-        sys.exit(1)
-
-# ────────────────────────────────────────────────────────────────────────
-#  kanji  <character>
-# ────────────────────────────────────────────────────────────────────────
+        out.render_kanji_table(matches, title="Kanji By Radicals")
+        return
+    radicals = KB.radicals()
+    if as_json:
+        typer.echo(_to_json(radicals))
+        return
+    out.render_radicals(radicals)
 
 
-@main.command()
-@click.argument("literal")
-def kanji(literal: str):
+@lookup_app.command(name="jlpt-list")
+@_guard_no_db
+def lookup_jlpt_list(
+    kind: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="One Of 'vocab', 'kanji, or 'grammar'",
+        ),
+    ],
+    level: Annotated[
+        int,
+        typer.Argument(
+            ...,
+            help="JLPT Level From 1 To 5",
+        ),
+    ],
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format Results As JSON",
+        ),
+    ] = False,
+) -> None:
     """
-    Show KanjiDic details for a single character.
+    Show A Full Tanos JLPT Study List By Its Kind And Level
     """
     try:
-        info = kb.kanji(literal)
-        if not info:
-            click.echo("Kanji not found.")
-            return
-        handle_kanji(info)
-    except Exception as e:
-        click.secho(f"Error During Lookup: {e}",
-                    fg="red",
-                    err=True
-                    )
-        sys.exit(1)
+        results = KB.jlpt_list(kind, level)
+    except ValueError:
+        THEMED_CONSOLE.print(
+            "[danger]⊗ Unknown JLPT Kind -> Use[/][heading] vocab[/]"
+            "[danger],[/][heading] kanji[/][danger] Or[/][heading] grammar[/]"
+        )
+        raise typer.Exit(1) from None
+    if as_json:
+        typer.echo(_to_json(results))
+        return
+    out.render_jlpt_list(results, kind=kind, level=level)
 
 
-# ────────────────────────────────────────────────────────────────────────
-#  jlpt  <word>
-# ────────────────────────────────────────────────────────────────────────
-
-@main.command()
-@click.argument("word")
-def jlpt(word: str):
+@lookup_app.command(name="names")
+@_guard_no_db
+def lookup_names(
+    form: Annotated[
+        str | None,
+        typer.Argument(
+            help="A Proper Name To Search For Or None To Browse By --type",
+        ),
+    ] = None,
+    name_type: Annotated[
+        str | None,
+        typer.Option(
+            "-t",
+            "--type",
+            help="Browse A Name Type Such As 'place'",
+        ),
+    ] = None,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format Results As JSON",
+        ),
+    ] = False,
+) -> None:
     """
-    Show JLPT levels associated with a word / kanji string.
+    Look Up Or Browse JMnedict Proper Names
+    """
+    results = KB.names(form, name_type=name_type)
+    if as_json:
+        typer.echo(_to_json(results))
+        return
+    out.render_names(results)
+
+
+@lookup_app.command(name="meaning")
+@_guard_no_db
+def lookup_meaning(
+    query: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="English Meaning To Search For",
+        ),
+    ],
+    limit: Annotated[
+        int,
+        typer.Option(
+            "-l",
+            "--limit",
+            help="Maximum Number Of Results To Show",
+        ),
+    ] = 30,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Emit JSON",
+        ),
+    ] = False,
+) -> None:
+    """
+    Find Entries By Their English Meaning
+    """
+    results = KB.search_meaning(query, limit=limit)
+    if as_json:
+        typer.echo(_to_json(results))
+        return
+    out.render_entries(results, query=query)
+
+
+@lookup_app.command(name="sentences")
+@_guard_no_db
+def lookup_sentences(
+    text_value: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="Text To Search For",
+        ),
+    ],
+    limit: Annotated[
+        int,
+        typer.Option(
+            "--limit",
+            help="Maximum Number Of Results To Display",
+        ),
+    ] = 10,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format Results As JSON",
+        ),
+    ] = False,
+) -> None:
+    """
+    Find Japanese Example Sentences Containing A Specific Text
+    """
+    results = KB.sentences(text_value, limit=limit)
+    if as_json:
+        typer.echo(_to_json(results))
+        return
+    out.render_sentences(results, query=text_value)
+
+
+@lookup_app.command(name="furigana")
+@_guard_no_db
+def lookup_furigana(
+    word: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="A Written Spelling",
+        ),
+    ],
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format The Result As JSON",
+        ),
+    ] = False,
+) -> None:
+    """
+    Show Furigana Segmentation For A Written Form
+    """
+    results = KB.furigana(word)
+    if as_json:
+        typer.echo(_to_json(results))
+        return
+    out.render_furigana(results)
+
+
+@lookup_app.command(name="kanji-svg")
+@_guard_no_db
+def lookup_kanji_svg(
+    literal: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="A Single Kanji Character",
+        ),
+    ],
+    raw: Annotated[
+        bool,
+        typer.Option(
+            "--raw",
+            help="Emit The Raw KanjiVG Fragment Instead Of A Renderable SVG",
+        ),
+    ] = False,
+) -> None:
+    """
+    Print A Kanji's Stroke Order As A Renderable SVG Document
+    """
+    svg = KB.stroke_svg(literal, raw=raw)
+    if svg is None:
+        out.render_no_results(literal)
+        return
+    typer.echo(svg)
+
+
+@lookup_app.command(name="audio")
+@_guard_no_db
+def lookup_audio(
+    key: Annotated[
+        str,
+        typer.Argument(
+            ...,
+            help="A Kanji Or Word",
+        ),
+    ],
+    out_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "-o",
+            "--out",
+            help="Directory To Save The Audio Clips Into",
+        ),
+    ] = None,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "-j",
+            "--json",
+            help="Format Results As JSON",
+        ),
+    ] = False,
+) -> None:
+    """
+    List Or Download Pronunciation Audio For A Kanji Or Word
+    """
+    clips = KB.audio(key)
+    if as_json:
+        typer.echo(_to_json(clips))
+        return
+    if not clips:
+        out.render_no_results(key)
+        return
+    if out_dir is not None:
+        out.render_audio_saved(KB.save_audio(key, out_dir))
+        return
+    out.render_audio(key, clips)
+
+
+# --- DB Commands ---
+
+
+@db_app.command(name="info")
+@_guard_no_db
+def db_info() -> None:
+    """
+    Show Build Metadata For The Active Database
+    """
+    out.render_db_info(KB.db_info())
+
+
+@db_app.command(name="build")
+def db_build(
+    force: Annotated[
+        bool,
+        typer.Option(
+            "-f",
+            "--force",
+            help="Rebuild The Database Even When It's Present",
+        ),
+    ] = False,
+    with_links: Annotated[
+        bool,
+        typer.Option(
+            "--with-links/--no-links",
+            help=(
+                "Align Tatoeba Example Sentences To Their English Translation"
+            ),
+        ),
+    ] = True,
+    with_audio: Annotated[
+        bool,
+        typer.Option(
+            "--with-audio/--no-audio",
+            help=(
+                "Also Build The Optional Audio Database To Have Access To "
+                "Pronunciation Clips"
+            ),
+        ),
+    ] = True,
+) -> None:
+    """
+    Download Upstream Sources And Build The Database Locally
     """
     try:
-        vocab_level = kb.jlpt_level(word)
-        kanji_levels = kb.lookup(word).jlpt_kanji_levels
-        if vocab_level:
-            click.echo(f"Vocabulary level: N{vocab_level}")
-        else:
-            click.echo("Vocabulary: (not in JLPT lists)")
-
-        if kanji_levels:
-            click.echo("Kanji levels:")
-            for k, lvl in kanji_levels.items():
-                click.echo(f"  {k} -> N{lvl}")
-        else:
-            click.echo("Kanji: (none in JLPT lists)")
-    except Exception as e:
-        click.secho(f"Error During Lookup: {e}",
-                    fg="red",
-                    err=True
-                    )
-        sys.exit(1)
-
-# ────────────────────────────────────────────────────────────────────────
-#  db_info
-# ────────────────────────────────────────────────────────────────────────
+        builder.build_core(
+            force=force,
+            include_links=with_links,
+        )
+    except FileExistsError:
+        THEMED_CONSOLE.print(
+            "[danger]⊗ Database Already Exists -> Run[/][heading]"
+            "kotobase db build --force[/][danger] To Rebuild[/]"
+        )
+        raise typer.Exit(1) from None
+    if with_audio:
+        try:
+            builder.build_audio(force=force)
+        except FileExistsError:
+            THEMED_CONSOLE.print(
+                "[danger]⊗ Audio Database Already Exists -> Run[/][heading]"
+                "kotobase db build --force[/][danger] To Rebuild[/]"
+            )
+            raise typer.Exit(1) from None
 
 
-@main.command()
-def db_info():
+@db_app.command(name="pull")
+def db_pull(
+    tag: Annotated[
+        str | None,
+        typer.Option(
+            "-t", "--tag", help="Specify A Specific Release Tag To Pull"
+        ),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            help="Replace When The Database Is Already Present",
+        ),
+    ] = False,
+    with_audio: Annotated[
+        bool,
+        typer.Option(
+            "--with-audio/--no-audio",
+            help=(
+                "Also Pull The Additional Audio Database To Have Access To "
+                "Pronunciation Clips"
+            ),
+        ),
+    ] = True,
+) -> None:
     """
-    Print information about Database being used.
+    Download a Pre-Built Database From A GitHub Release
     """
     try:
-        info = kb.db_info()
-        click.secho("--- Database Build Log ---",
-                    fg="blue")
-        click.secho(f"Build Date : {info['build_date']}")
-        click.secho(f"Build Time : {info['build_time']} seconds")
-        click.secho(f"File Size : {info['size_mb']} MB")
-
-    except Exception as e:
-        click.secho(f"Error Getting Database Info: {e}",
-                    fg="red",
-                    err=True
-                    )
-        sys.exit(1)
-# ────────────────────────────────────────────────────────────────────────
-#  Wire maintenance commands from db_builder
-# ────────────────────────────────────────────────────────────────────────
-
-
-main.add_command(build_db_command)
-main.add_command(pull_db_command)
+        builder.pull_db(tag=tag, force=force)
+    except FileExistsError:
+        THEMED_CONSOLE.print(
+            "[danger]⊗ Database Already Exists -> Run[/][heading]"
+            "kotobase db pull --force[/][danger] To Replace[/]"
+        )
+        raise typer.Exit(1) from None
+    if with_audio:
+        try:
+            builder.build_audio(force=force)
+        except FileExistsError:
+            THEMED_CONSOLE.print(
+                "[danger]⊗ Audio Database Already Exists -> Run[/][heading]"
+                "kotobase db pull --force[/][danger] To Replace[/]"
+            )
+            raise typer.Exit(1) from None
 
 
-# ────────────────────────────────────────────────────────────────────────
-#  Entrypoint
-# ────────────────────────────────────────────────────────────────────────
+# --- Cache Commands ---
+
+
+@cache_app.command(name="clear")
+def cache_clear(
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "-y",
+            "--yes",
+            help="Skip Confirmation",
+        ),
+    ] = False,
+    sources_only: Annotated[
+        bool,
+        typer.Option(
+            "--sources-only",
+            help=(
+                "Delete Only The Raw Upstream Sources Downloaded During A "
+                " Build"
+            ),
+        ),
+    ] = False,
+    db_only: Annotated[
+        bool,
+        typer.Option(
+            "--db-only",
+            help=(
+                "Delete Only The Pulled / Built Databases, Leaving Raw "
+                "Upstream Sources Downloaded During A Build"
+            ),
+        ),
+    ] = False,
+) -> None:
+    """
+    Delete The Entire Kotobase Cache Directory, Or Specific Items Within It
+    """
+    config = builder.config
+    if sources_only:
+        targets = [config.raw_dir()]
+    elif db_only:
+        targets = [config.db_path(), config.audio_db_path()]
+    else:
+        targets = [config.raw_dir(), config.db_path(), config.audio_db_path()]
+    existing = [path for path in targets if path.exists()]
+    if not existing:
+        out.render_cache_cleared([], 0)
+        return
+    if not yes:
+        typer.confirm(f"Delete {len(existing)} Cache Path(s)?", abort=True)
+    freed = sum(_path_size(path) for path in existing)
+    removed: list[Path] = []
+    for path in existing:
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+        removed.append(path)
+    out.render_cache_cleared(removed, freed)
+
+
+@cache_app.command(name="path")
+def cache_path() -> None:
+    """
+    Display The File System Path Of The Kotobase Cache Directory
+    """
+    out.render_cache_path(builder.config.cache_dir())
+
+
+@cache_app.command(name="size")
+def cache_size() -> None:
+    """
+    Display The Total Disk Size Occupied By The Kotobase Cache Directory
+    """
+    config = builder.config
+    sizes = {
+        "Raw Sources": _path_size(config.raw_dir()),
+        "Core Database": _path_size(config.db_path()),
+        "Audio Database": _path_size(config.audio_db_path()),
+    }
+    out.render_cache_size(sizes)
+
 
 if __name__ == "__main__":
-    main()
+    # Force UTF-8 on stdout and stderr so Japanese text survives redirection.
+    # On Windows, a redirected stream defaults to a legacy code page (cp1252)
+    # that cannot encode kana or kanji, which otherwise crashes piped or `>`
+    # output
+
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if isinstance(sys.stderr, io.TextIOWrapper):
+        sys.stderr.reconfigure(encoding="utf-8")
+
+    app()

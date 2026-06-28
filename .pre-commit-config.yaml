@@ -1,0 +1,34 @@
+# Pre-commit hooks for kotobase
+# The installable package lives in `kotobase/`, so tooling is scoped there and
+# reads its config from `kotobase/pyproject.toml`
+#
+#  Run `pre-commit autoupdate` to bump revs
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+
+     # --- ruff (lint + format) ---
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+    # --- Sync .github/ meta files to the per-app copies ---
+  - repo: local
+    hooks:
+        - id: sync-meta
+          name: Sync README + LICENSE
+          language: python
+          entry: python scripts/sync_meta.py
+          files: ^\.github/(README\.md|LICENSE)$
+          pass_filenames: false

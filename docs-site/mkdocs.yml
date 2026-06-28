@@ -1,35 +1,54 @@
-site_name: Kotobase Docs
+site_name: kotobase
 site_url: https://svdc1.github.io/kotobase
-site_dir: site
 repo_url: https://github.com/svdC1/kotobase
 repo_name: svdC1/kotobase
+docs_dir: docs
+copyright: Copyright &copy; 2026 svdC1
 theme:
   name: material
   font:
-    code: Roboto Mono
+    text: Hanken Grotesk
+    code: JetBrains Mono
+  logo: assets/icon-192.png
+  favicon: assets/favicon.ico
   features:
     - header.autohide
     - navigation.footer
+    - content.tooltips
+    - content.code.copy
+    - content.code.annotate
     - search.suggest
     - search.highlight
-    - navigation.sections
+    - navigation.tracking
     - navigation.tabs
+    - navigation.indexes
   icon:
     repo: fontawesome/brands/github
   palette:
     - scheme: slate
-      primary: black
-      accent: deep purple
+      primary: custom
+      accent: custom
+
+extra_css:
+  - assets/kb_theme.css
 
 plugins:
   - search
-  - autorefs
+  - awesome-nav
   - mkdocstrings:
       handlers:
         python:
           inventories:
             - https://docs.python.org/3/objects.inv
-            - https://docs.sqlalchemy.org/en/20/objects.inv
+            - https://docs.sqlalchemy.org/objects.inv
+            - https://typer.tiangolo.com/objects.inv
+            - https://rich.readthedocs.io/en/stable/objects.inv
+            - https://platformdirs.readthedocs.io/en/latest/objects.inv
+            - https://python-zstandard.readthedocs.io/en/latest/objects.inv
+            - https://lxml.de/apidoc/objects.inv
+            - https://requests.readthedocs.io/en/latest/objects.inv
+          paths:
+            ["../kotobase/src"]
           options:
             show_root_heading: true
             show_root_toc_entry: true
@@ -43,9 +62,10 @@ plugins:
             show_object_full_path: false
             show_root_members_full_path: false
             show_source: false
-
-          paths: ["../kotobase/src"]
-
+            show_submodules: true
+  - autorefs:
+      resolve_closest: true
+      link_titles: true
 markdown_extensions:
   - toc:
       permalink: true
@@ -54,7 +74,18 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
-  - pymdownx.highlight
+  - pymdownx.details
+  - pymdownx.critic
+  - pymdownx.betterem
+  - pymdownx.keys
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
   - pymdownx.superfences
   - pymdownx.inlinehilite
   - pymdownx.snippets
@@ -63,3 +94,7 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.magiclink
+  - pymdownx.blocks.caption
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg

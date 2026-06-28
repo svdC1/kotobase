@@ -1,0 +1,3 @@
+:::kotobase
+    options:
+        members: false

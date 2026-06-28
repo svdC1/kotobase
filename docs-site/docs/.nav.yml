@@ -1,0 +1,10 @@
+nav:
+  - Home: index.md
+  - Reference: reference
+  - CLI Reference: cli.md
+  - Examples: examples.md
+  - Project:
+      - Contributing: project/contributing.md
+      - Changelog: project/changelog.md
+      - Versioning Policy: project/versioning.md
+      - Third-Party Notices: project/notice.md
