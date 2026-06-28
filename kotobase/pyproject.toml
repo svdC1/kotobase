@@ -47,11 +47,13 @@ dependencies = [
 [project.optional-dependencies]
 # Documentation Site
 docs = [
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.26",
-    "mkdocs-autorefs>=1.2",
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    "mkdocs-autorefs",
     "mkdocs-awesome-nav",
-
+    "black"
 ]
 # Development
 dev = [
