@@ -1,80 +1,138 @@
 """
 Defines Kotobase's Data-Transfer-Objects
 
-The DTO's are the boundary between the database and the public API.
+The DTOs are the boundary between the database and the public API.
 [`Repositories`][kotobase.db.repos] return them rather than
 [`ORM`][kotobase.db.models] rows so that callers get plain, immutable,
-serializable objects that don't depend on an open session
+serializable values that don't depend on an open session
 
 info: Serialization
-    Every object inherits from [`Serializable`][kotobase.db.dtos.Serializable],
-    which adds `to_dict`, `to_json` and iteration to every DTO
+    Every DTO is a `Pydantic` model, serialize it with Pydantic's own
+    `model_dump` / `model_dump_json`, which keep Japanese text verbatim
 
 info: ORM Mapping
-    - Each object exposes a `from_orm` classmethod that builds it from a
-      loaded ORM row
+    - ORM-backed DTOs inherit from
+      [`SafeORMModel`][kotobase.db.dtos.SafeORMModel] and are built with
+      `model_validate`, reading attributes straight from a loaded ORM row
 
-    - Nested objects delegate to each other, so `JMDictEntryDTO.from_orm`
-      builds its senses through `SenseDTO.from_orm` and so on
+    - A model validator replaces any relationship that wasn't eagerly loaded
+      with `None`, so validation never triggers a lazy load, and overlays
+      values passed through the validation `context` for fields that aren't
+      plain ORM attributes, such as a kanji's radicals
 
-    - The classmethods expect the relationships they read to be eagerly-loaded
-      , which is done by the [`Repositories`][kotobase.db.repos]
+    - The [`Repositories`][kotobase.db.repos] eagerly load the relationships
+      each DTO reads
 """
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterator, Sequence
-from dataclasses import asdict, dataclass
-from dataclasses import field as dfield
-from typing import Any
+from typing import Any, Protocol, TypeAlias
 
-from . import models as orm
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+from sqlalchemy import inspect
+from sqlalchemy.orm import base
 
 
-class Serializable:
+class SafeORMModel(BaseModel):
     """
-    Mixin that adds `dict` + `JSON` serialization to a python dataclass
+    Pydantic base model for ORM-backed DTOs that tolerates unloaded
+    relationships
+
+    Validates directly from `SQLAlchemy` instances (`from_attributes`), but
+    first replaces any relationship field that wasn't eagerly loaded with
+    `None` instead of triggering a lazy load, and overlays any values supplied
+    through the validation `context`
     """
 
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Converts the object to a plain dictionary
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
-        Returns:
-            A nested dictionary of the `dataclass` fields
+    @model_validator(mode="before")
+    @classmethod
+    def check_sqlalchemy_state(cls, data: Any, info: ValidationInfo) -> Any:
         """
-        return asdict(self)  # type: ignore[call-overload,no-any-return]
+        Builds a validation-safe mapping from a `SQLAlchemy` instance
 
-    def to_json(self, **json_kwargs: Any) -> str:
-        """
-        Converts the object to a `JSON` string
+        Reads each field from its ORM attribute (honoring a field's validation
+        alias), maps unloaded relationships to `None` so that validation never
+        triggers a lazy load, then overlays any matching keys from the
+        validation `context`. Inputs that aren't SQLAlchemy instances are
+        returned unchanged
 
         Args:
-            **json_kwargs (Any): Extra keyword arguments forwarded to
-                `json.dumps`
+            data (Any): The value being validated (ORM instance or mapping)
+            info (ValidationInfo): Validation context carrying injected fields
 
         Returns:
-            The object encoded as compact `JSON` with non-ASCII characters
-                kept verbatim
+            A mapping safe for Pydantic validation, or `data` unchanged when
+                it isn't a `SQLAlchemy` instance
         """
-        json_kwargs.setdefault("ensure_ascii", False)
-        json_kwargs.setdefault("separators", (",", ":"))
-        return json.dumps(self.to_dict(), **json_kwargs)
 
-    def __iter__(self) -> Iterator[tuple[str, Any]]:
-        """
-        Iterates over the object's fields as key and value pairs
+        # Check If The Object is an SQLAlchemy Instance
+        state = inspect(data, raiseerr=False)
+        if state is None:
+            # Return Input Object Unchanged
+            return data
 
-        Yields:
-            Each field name paired with its value
+        # Relationships not eagerly loaded, and attributes already in memory
+        unloaded_fields = state.unloaded
+        loaded_data = base.instance_dict(data)
+
+        # Build A Safe Dictionary For Pydantic
+        safe_dict: dict[str, Any] = {}
+        for field_name, field in cls.model_fields.items():
+            # A field may read from a differently named ORM attribute
+            alias = field.validation_alias
+            source = alias if isinstance(alias, str) else field_name
+            if source in unloaded_fields:
+                # Relationship not loaded, avoid triggering a lazy load
+                safe_dict[field_name] = None
+            elif source in loaded_data:
+                safe_dict[field_name] = loaded_data[source]
+            else:
+                # Calculated fields / hybrids not present in instance_dict
+                safe_dict[field_name] = getattr(data, source, None)
+
+        # Overlay repo-injected fields that aren't plain ORM attributes
+        if info.context:
+            safe_dict.update(
+                {
+                    key: value
+                    for key, value in info.context.items()
+                    if key in cls.model_fields
+                }
+            )
+        return safe_dict
+
+
+class Keyed(Protocol):
+    """
+    Interface for a DTO that carries its own lookup key
+
+    The public API accepts these DTOs anywhere a string key is expected and
+    reads the key straight off the object, so a result from one call can be
+    passed into another without unpacking a field by hand
+    """
+
+    @property
+    def key(self) -> str:
         """
-        yield from self.to_dict().items()
+        Return the DTO's natural lookup key
+
+        Returns:
+            The key string, such as a kanji literal or an entry's headword
+        """
+        ...
 
 
 # --- JMdict ---
-@dataclass(slots=True)
-class GlossDTO(Serializable):
+class GlossDTO(SafeORMModel):
     """
     A single translation of a `JMdict` sense
 
@@ -90,27 +148,8 @@ class GlossDTO(Serializable):
     gender: str | None = None
     gtype: str | None = None
 
-    @classmethod
-    def from_orm(cls, gloss: orm.JMDictGloss) -> GlossDTO:
-        """
-        Build a gloss from an ORM gloss row
 
-        Args:
-            gloss (orm.JMDictGloss): The ORM gloss row
-
-        Returns:
-            The gloss as a data transfer object
-        """
-        return cls(
-            text=gloss.text,
-            lang=gloss.lang,
-            gender=gloss.gender,
-            gtype=gloss.gtype,
-        )
-
-
-@dataclass(slots=True)
-class SenseDTO(Serializable):
+class SenseDTO(SafeORMModel):
     """
     One meaning of a `JMdict` entry with its glosses and tags
 
@@ -126,42 +165,41 @@ class SenseDTO(Serializable):
         lsource (list[dict]): Source language records for loanwords
     """
 
-    glosses: list[GlossDTO] = dfield(default_factory=list)
-    pos: list[str] = dfield(default_factory=list)
-    field: list[str] = dfield(default_factory=list)
-    misc: list[str] = dfield(default_factory=list)
-    dialect: list[str] = dfield(default_factory=list)
-    info: list[str] = dfield(default_factory=list)
-    xref: list[str] = dfield(default_factory=list)
-    antonym: list[str] = dfield(default_factory=list)
-    lsource: list[dict[str, Any]] = dfield(default_factory=list)
+    glosses: list[GlossDTO] = Field(default_factory=list)
+    pos: list[str] = Field(default_factory=list)
+    field: list[str] = Field(default_factory=list)
+    misc: list[str] = Field(default_factory=list)
+    dialect: list[str] = Field(default_factory=list)
+    info: list[str] = Field(default_factory=list)
+    xref: list[str] = Field(default_factory=list)
+    antonym: list[str] = Field(default_factory=list)
+    lsource: list[dict[str, Any]] = Field(default_factory=list)
 
-    @classmethod
-    def from_orm(cls, sense: orm.JMDictSense) -> SenseDTO:
+    def all_tags(self) -> list[str]:
         """
-        Build a sense from an ORM sense row
-
-        Args:
-            sense (orm.JMDictSense): The ORM sense row with its glosses loaded
+        Return every tag code attached to the sense
 
         Returns:
-            The sense as a data transfer object
+            The pos, field, misc and dialect codes concatenated in that order
         """
-        return cls(
-            glosses=[GlossDTO.from_orm(gloss) for gloss in sense.glosses],
-            pos=sense.pos,
-            field=sense.field,
-            misc=sense.misc,
-            dialect=sense.dialect,
-            info=sense.info,
-            xref=sense.xref,
-            antonym=sense.antonym,
-            lsource=sense.lsource,
-        )
+        return [*self.pos, *self.field, *self.misc, *self.dialect]
+
+    def expand_tags(self, labels: dict[str, str]) -> list[str]:
+        """
+        Resolve the sense's tag codes to human descriptions
+
+        Args:
+            labels (dict[str, str]): A code to description map, such as the one
+                on [`LookupResult.labels`][kotobase.db.dtos.LookupResult]
+
+        Returns:
+            One description per tag code, falling back to the raw code when it
+                isn't present in the map
+        """
+        return [labels.get(code, code) for code in self.all_tags()]
 
 
-@dataclass(slots=True)
-class KanjiFormDTO(Serializable):
+class KanjiFormDTO(SafeORMModel):
     """
     A written form of a `JMdict` entry
 
@@ -174,30 +212,21 @@ class KanjiFormDTO(Serializable):
 
     text: str
     is_common: bool = False
-    info: list[str] = dfield(default_factory=list)
-    priority: list[str] = dfield(default_factory=list)
+    info: list[str] = Field(default_factory=list)
+    priority: list[str] = Field(default_factory=list)
 
-    @classmethod
-    def from_orm(cls, form: orm.JMDictKanji) -> KanjiFormDTO:
+    @property
+    def key(self) -> str:
         """
-        Build a kanji form from an ORM kanji form row
-
-        Args:
-            form (orm.JMDictKanji): The ORM kanji form row
+        Return the lookup key for this kanji form
 
         Returns:
-            The form as a data transfer object
+            The kanji spelling text
         """
-        return cls(
-            text=form.text,
-            is_common=form.is_common,
-            info=form.info,
-            priority=form.priority,
-        )
+        return self.text
 
 
-@dataclass(slots=True)
-class KanaFormDTO(Serializable):
+class KanaFormDTO(SafeORMModel):
     """
     A reading form of a `JMdict` entry
 
@@ -214,33 +243,22 @@ class KanaFormDTO(Serializable):
     text: str
     is_common: bool = False
     no_kanji: bool = False
-    restrictions: list[str] = dfield(default_factory=list)
-    info: list[str] = dfield(default_factory=list)
-    priority: list[str] = dfield(default_factory=list)
+    restrictions: list[str] = Field(default_factory=list)
+    info: list[str] = Field(default_factory=list)
+    priority: list[str] = Field(default_factory=list)
 
-    @classmethod
-    def from_orm(cls, form: orm.JMDictKana) -> KanaFormDTO:
+    @property
+    def key(self) -> str:
         """
-        Build a kana form from an ORM kana form row
-
-        Args:
-            form (orm.JMDictKana): The ORM kana form row
+        Return the lookup key for this kana form
 
         Returns:
-            The form as a data transfer object
+            The kana reading text
         """
-        return cls(
-            text=form.text,
-            is_common=form.is_common,
-            no_kanji=form.no_kanji,
-            restrictions=form.restrictions,
-            info=form.info,
-            priority=form.priority,
-        )
+        return self.text
 
 
-@dataclass(slots=True)
-class JMDictEntryDTO(Serializable):
+class JMDictEntryDTO(SafeORMModel):
     """
     One `JMdict` dictionary entry
 
@@ -257,30 +275,9 @@ class JMDictEntryDTO(Serializable):
     id: int
     is_common: bool = False
     freq_rank: int | None = None
-    kanji: list[KanjiFormDTO] = dfield(default_factory=list)
-    kana: list[KanaFormDTO] = dfield(default_factory=list)
-    senses: list[SenseDTO] = dfield(default_factory=list)
-
-    @classmethod
-    def from_orm(cls, entry: orm.JMDictEntry) -> JMDictEntryDTO:
-        """
-        Build an entry from an ORM entry row
-
-        Args:
-            entry (orm.JMDictEntry): The ORM entry with its forms and senses
-                eagerly-loaded
-
-        Returns:
-            The entry as a data transfer object
-        """
-        return cls(
-            id=entry.id,
-            is_common=entry.is_common,
-            freq_rank=entry.freq_rank,
-            kanji=[KanjiFormDTO.from_orm(form) for form in entry.kanji],
-            kana=[KanaFormDTO.from_orm(form) for form in entry.kana],
-            senses=[SenseDTO.from_orm(sense) for sense in entry.senses],
-        )
+    kanji: list[KanjiFormDTO] = Field(default_factory=list)
+    kana: list[KanaFormDTO] = Field(default_factory=list)
+    senses: list[SenseDTO] = Field(default_factory=list)
 
     @property
     def headword(self) -> str:
@@ -294,10 +291,62 @@ class JMDictEntryDTO(Serializable):
             return self.kanji[0].text
         return self.kana[0].text if self.kana else ""
 
+    @property
+    def key(self) -> str:
+        """
+        Return the lookup key for this entry
+
+        Returns:
+            The entry's headword
+        """
+        return self.headword
+
+    def common_kanji(self) -> list[KanjiFormDTO]:
+        """
+        Return only the written forms flagged common
+
+        Returns:
+            The kanji forms whose `is_common` is True
+        """
+        return [form for form in self.kanji if form.is_common]
+
+    def common_kana(self) -> list[KanaFormDTO]:
+        """
+        Return only the reading forms flagged common
+
+        Returns:
+            The kana forms whose `is_common` is True
+        """
+        return [form for form in self.kana if form.is_common]
+
+    def all_pos(self) -> list[str]:
+        """
+        Return the unique part-of-speech codes used across every sense
+
+        Returns:
+            The part-of-speech codes in first-seen order, without duplicates
+        """
+        seen: dict[str, None] = {}
+        for sense in self.senses:
+            for code in sense.pos:
+                seen.setdefault(code, None)
+        return list(seen)
+
+    def senses_with_pos(self, code: str) -> list[SenseDTO]:
+        """
+        Return the senses that carry a given part-of-speech code
+
+        Args:
+            code (str): The part-of-speech tag code to match
+
+        Returns:
+            The senses whose `pos` contains the code
+        """
+        return [sense for sense in self.senses if code in sense.pos]
+
 
 # --- JMnedict ---
-@dataclass(slots=True)
-class NameTranslationDTO(Serializable):
+class NameTranslationDTO(SafeORMModel):
     """
     A translation block of a `JMnedict` name
 
@@ -307,31 +356,32 @@ class NameTranslationDTO(Serializable):
         xref (list[str]): Cross references to related entries
     """
 
-    name_type: list[str] = dfield(default_factory=list)
-    translations: list[str] = dfield(default_factory=list)
-    xref: list[str] = dfield(default_factory=list)
+    name_type: list[str] = Field(default_factory=list)
+    translations: list[str] = Field(
+        default_factory=list, validation_alias="glosses"
+    )
+    xref: list[str] = Field(default_factory=list)
 
+    @field_validator("translations", mode="before")
     @classmethod
-    def from_orm(cls, block: orm.JMnedictTranslation) -> NameTranslationDTO:
+    def _glosses_to_text(cls, value: Any) -> Any:
         """
-        Build a translation block from an ORM translation row
+        Flatten `JMnedictGloss` rows to their text when validating from ORM
 
         Args:
-            block (orm.JMnedictTranslation): The ORM translation block with its
-                glosses loaded
+            value (Any): The raw `translations` input, a list of
+                [`JMNedictGloss`][kotobase.db.models.JMNedictGloss]
+                rows or strings
 
         Returns:
-            The translation block as a data transfer object
+            A list of gloss strings, or the value unchanged when not a list
         """
-        return cls(
-            name_type=block.name_type,
-            translations=[gloss.text for gloss in block.glosses],
-            xref=block.xref,
-        )
+        if isinstance(value, list):
+            return [getattr(item, "text", item) for item in value]
+        return value
 
 
-@dataclass(slots=True)
-class JMNeDictEntryDTO(Serializable):
+class JMNeDictEntryDTO(SafeORMModel):
     """
     One `JMnedict` proper name entry
 
@@ -343,31 +393,28 @@ class JMNeDictEntryDTO(Serializable):
     """
 
     id: int
-    kanji: list[str] = dfield(default_factory=list)
-    kana: list[str] = dfield(default_factory=list)
-    translations: list[NameTranslationDTO] = dfield(default_factory=list)
+    kanji: list[str] = Field(default_factory=list)
+    kana: list[str] = Field(default_factory=list)
+    translations: list[NameTranslationDTO] = Field(default_factory=list)
 
+    @field_validator("kanji", "kana", mode="before")
     @classmethod
-    def from_orm(cls, entry: orm.JMnedictEntry) -> JMNeDictEntryDTO:
+    def _forms_to_text(cls, value: Any) -> Any:
         """
-        Build a name entry from an ORM entry row
+        Flatten `JMnedict` kanji / kana rows to their text from ORM
 
         Args:
-            entry (orm.JMnedictEntry): The ORM entry with its forms and
-                translations eagerly-loaded
+            value (Any): The raw form input, a list of
+            [`JMnedictKanji`][kotobase.db.models.JMNedictKanji] /
+            [`JMnedictKana`][kotobase.db.models.JMNedictKana]
+            rows or strings
 
         Returns:
-            The entry as a data transfer object
+            A list of form strings, or the value unchanged when not a list
         """
-        return cls(
-            id=entry.id,
-            kanji=[form.text for form in entry.kanji],
-            kana=[form.text for form in entry.kana],
-            translations=[
-                NameTranslationDTO.from_orm(block)
-                for block in entry.translations
-            ],
-        )
+        if isinstance(value, list):
+            return [getattr(item, "text", item) for item in value]
+        return value
 
     @property
     def headword(self) -> str:
@@ -381,10 +428,19 @@ class JMNeDictEntryDTO(Serializable):
             return self.kanji[0]
         return self.kana[0] if self.kana else ""
 
+    @property
+    def key(self) -> str:
+        """
+        Return the lookup key for this name entry
+
+        Returns:
+            The name entry's headword
+        """
+        return self.headword
+
 
 # --- Kanji ---
-@dataclass(slots=True)
-class KanjiDTO(Serializable):
+class KanjiDTO(SafeORMModel):
     """
     A kanji with its full `KanjiDic2` and `KanjiVG` profile
 
@@ -418,72 +474,77 @@ class KanjiDTO(Serializable):
     freq: int | None = None
     jlpt_old: int | None = None
     jlpt_tanos: int | None = None
-    onyomi: list[str] = dfield(default_factory=list)
-    kunyomi: list[str] = dfield(default_factory=list)
-    nanori: list[str] = dfield(default_factory=list)
-    pinyin: list[str] = dfield(default_factory=list)
-    korean: list[str] = dfield(default_factory=list)
-    meanings: list[str] = dfield(default_factory=list)
-    radicals: list[str] = dfield(default_factory=list)
-    dic_refs: dict[str, str] = dfield(default_factory=dict)
-    query_codes: dict[str, list[str]] = dfield(default_factory=dict)
-    codepoints: dict[str, str] = dfield(default_factory=dict)
-    variants: list[dict[str, Any]] = dfield(default_factory=list)
+    onyomi: list[str] = Field(default_factory=list)
+    kunyomi: list[str] = Field(default_factory=list)
+    nanori: list[str] = Field(default_factory=list)
+    pinyin: list[str] = Field(default_factory=list)
+    korean: list[str] = Field(default_factory=list)
+    meanings: list[str] = Field(default_factory=list)
+    radicals: list[str] = Field(default_factory=list)
+    dic_refs: dict[str, str] = Field(default_factory=dict)
+    query_codes: dict[str, list[str]] = Field(default_factory=dict)
+    codepoints: dict[str, str] = Field(default_factory=dict)
+    variants: list[dict[str, Any]] = Field(default_factory=list)
     has_stroke_order: bool = False
 
-    @classmethod
-    def from_orm(
-        cls,
-        kanji: orm.Kanji,
-        *,
-        radicals: Sequence[str] = (),
-        jlpt_tanos: int | None = None,
-    ) -> KanjiDTO:
+    @property
+    def key(self) -> str:
         """
-        Build a kanji profile from an ORM kanji row
-
-        Args:
-            kanji (orm.Kanji): The ORM kanji with its readings, meanings,
-                nanori, dic refs, query codes, variants, codepoints and stroke
-                data eagerly-loaded
-            radicals (Sequence[str]): Radical components for the kanji, which
-                are not a direct relationship and so are passed in
-            jlpt_tanos (int | None): The Tanos JLPT level when known
+        Return the lookup key for this kanji
 
         Returns:
-            The kanji as a data transfer object
+            The kanji literal character
         """
-        query_codes: dict[str, list[str]] = {}
-        for code in kanji.query_codes:
-            query_codes.setdefault(code.type, []).append(code.value)
-        korean = ("korean_r", "korean_h")
-        return cls(
-            literal=kanji.literal,
-            grade=kanji.grade,
-            stroke_count=kanji.stroke_count,
-            freq=kanji.freq,
-            jlpt_old=kanji.jlpt_old,
-            jlpt_tanos=jlpt_tanos,
-            onyomi=[r.value for r in kanji.readings if r.type == "ja_on"],
-            kunyomi=[r.value for r in kanji.readings if r.type == "ja_kun"],
-            nanori=[n.value for n in kanji.nanori],
-            pinyin=[r.value for r in kanji.readings if r.type == "pinyin"],
-            korean=[r.value for r in kanji.readings if r.type in korean],
-            meanings=[m.value for m in kanji.meanings if m.lang == "en"],
-            radicals=list(radicals),
-            dic_refs={ref.type: ref.value for ref in kanji.dic_refs},
-            query_codes=query_codes,
-            codepoints={cp.type: cp.value for cp in kanji.codepoints},
-            variants=[
-                {"type": v.type, "value": v.value} for v in kanji.variants
-            ],
-            has_stroke_order=kanji.strokes is not None,
-        )
+        return self.literal
+
+    def skip_codes(self) -> list[str]:
+        """
+        Return the SKIP query codes for the kanji
+
+        Returns:
+            The SKIP codes, or an empty list when none are recorded
+        """
+        return self.query_codes.get("skip", [])
+
+    def four_corner_codes(self) -> list[str]:
+        """
+        Return the Four Corner query codes for the kanji
+
+        Returns:
+            The Four Corner codes, or an empty list when none are recorded
+        """
+        return self.query_codes.get("four_corner", [])
+
+    def primary_onyomi(self) -> str | None:
+        """
+        Return the first on reading
+
+        Returns:
+            The first on reading, or None when there are none
+        """
+        return self.onyomi[0] if self.onyomi else None
+
+    def primary_kunyomi(self) -> str | None:
+        """
+        Return the first kun reading
+
+        Returns:
+            The first kun reading, or None when there are none
+        """
+        return self.kunyomi[0] if self.kunyomi else None
+
+    def is_joyo(self) -> bool:
+        """
+        Report whether the kanji is in the Joyo set
+
+        Returns:
+            True when the KanjiDic grade is 1 through 8
+        """
+        return self.grade is not None and self.grade <= 8
 
 
 # --- Furigana, Sentences, JLPT ---
-@dataclass(slots=True)
-class FuriganaDTO(Serializable):
+class FuriganaDTO(SafeORMModel):
     """
     Furigana segmentation for a spelling and reading pair
 
@@ -495,28 +556,10 @@ class FuriganaDTO(Serializable):
 
     text: str
     reading: str
-    segments: list[dict[str, Any]] = dfield(default_factory=list)
-
-    @classmethod
-    def from_orm(cls, row: orm.Furigana) -> FuriganaDTO:
-        """
-        Build a furigana object from an ORM furigana row
-
-        Args:
-            row (orm.Furigana): The ORM furigana row
-
-        Returns:
-            The row as a data transfer object
-        """
-        return cls(
-            text=row.text,
-            reading=row.reading,
-            segments=row.segments,
-        )
+    segments: list[dict[str, Any]] = Field(default_factory=list)
 
 
-@dataclass(slots=True)
-class SentenceDTO(Serializable):
+class SentenceDTO(SafeORMModel):
     """
     A `Tatoeba` example sentence with its translations
 
@@ -530,35 +573,10 @@ class SentenceDTO(Serializable):
     id: int
     text: str
     lang: str = "jpn"
-    translations: list[str] = dfield(default_factory=list)
-
-    @classmethod
-    def from_orm(
-        cls,
-        row: orm.Sentence,
-        *,
-        translations: Sequence[str] = (),
-    ) -> SentenceDTO:
-        """
-        Build a sentence from an ORM sentence row
-
-        Args:
-            row (orm.Sentence): The ORM sentence row
-            translations (Sequence[str]): Aligned translation texts when known
-
-        Returns:
-            The row as a data transfer object
-        """
-        return cls(
-            id=row.id,
-            text=row.text,
-            lang=row.lang,
-            translations=list(translations),
-        )
+    translations: list[str] = Field(default_factory=list)
 
 
-@dataclass(slots=True)
-class JLPTVocabDTO(Serializable):
+class JLPTVocabDTO(SafeORMModel):
     """
     A Tanos JLPT vocabulary item
 
@@ -574,27 +592,18 @@ class JLPTVocabDTO(Serializable):
     reading: str | None = None
     meaning: str | None = None
 
-    @classmethod
-    def from_orm(cls, row: orm.JlptVocab) -> JLPTVocabDTO:
+    @property
+    def key(self) -> str:
         """
-        Build a JLPT vocabulary item from an ORM row
-
-        Args:
-            row (orm.JlptVocab): The ORM JLPT vocabulary row
+        Return the lookup key for this JLPT vocabulary item
 
         Returns:
-            The row as a data transfer object
+            The headword, falling back to the reading, or an empty string
         """
-        return cls(
-            level=row.level,
-            word=row.word,
-            reading=row.reading,
-            meaning=row.meaning,
-        )
+        return self.word or self.reading or ""
 
 
-@dataclass(slots=True)
-class JLPTKanjiDTO(Serializable):
+class JLPTKanjiDTO(SafeORMModel):
     """
     A Tanos JLPT kanji item
 
@@ -612,28 +621,18 @@ class JLPTKanjiDTO(Serializable):
     kun_yomi: str | None = None
     meaning: str | None = None
 
-    @classmethod
-    def from_orm(cls, row: orm.JlptKanji) -> JLPTKanjiDTO:
+    @property
+    def key(self) -> str:
         """
-        Build a JLPT kanji item from an ORM row
-
-        Args:
-            row (orm.JlptKanji): The ORM JLPT kanji row
+        Return the lookup key for this JLPT kanji item
 
         Returns:
-            The row as a data transfer object
+            The kanji character
         """
-        return cls(
-            level=row.level,
-            kanji=row.kanji,
-            on_yomi=row.on_yomi,
-            kun_yomi=row.kun_yomi,
-            meaning=row.meaning,
-        )
+        return self.kanji
 
 
-@dataclass(slots=True)
-class JLPTGrammarDTO(Serializable):
+class JLPTGrammarDTO(SafeORMModel):
     """
     A Tanos JLPT grammar point
 
@@ -647,30 +646,11 @@ class JLPTGrammarDTO(Serializable):
     level: int
     grammar: str
     formation: str | None = None
-    examples: list[str] = dfield(default_factory=list)
-
-    @classmethod
-    def from_orm(cls, row: orm.JlptGrammar) -> JLPTGrammarDTO:
-        """
-        Build a JLPT grammar point from an ORM row
-
-        Args:
-            row (orm.JlptGrammar): The ORM JLPT grammar row
-
-        Returns:
-            The row as a data transfer object
-        """
-        return cls(
-            level=row.level,
-            grammar=row.grammar,
-            formation=row.formation,
-            examples=row.examples,
-        )
+    examples: list[str] = Field(default_factory=list)
 
 
 # --- Radicals, Audio ---
-@dataclass(slots=True)
-class RadicalDTO(Serializable):
+class RadicalDTO(SafeORMModel):
     """
     A search radical and its stroke count
 
@@ -682,22 +662,18 @@ class RadicalDTO(Serializable):
     radical: str
     stroke_count: int | None = None
 
-    @classmethod
-    def from_orm(cls, row: orm.Radical) -> RadicalDTO:
+    @property
+    def key(self) -> str:
         """
-        Build a radical from an ORM radical row
-
-        Args:
-            row (orm.Radical): The ORM radical row
+        Return the lookup key for this radical
 
         Returns:
-            The row as a data transfer object
+            The radical character
         """
-        return cls(radical=row.radical, stroke_count=row.stroke_count)
+        return self.radical
 
 
-@dataclass(slots=True)
-class AudioDTO(Serializable):
+class AudioDTO(SafeORMModel):
     """
     Metadata for a pronunciation audio clip
 
@@ -719,31 +695,9 @@ class AudioDTO(Serializable):
     license: str | None = None
     attribution: str | None = None
 
-    @classmethod
-    def from_orm(cls, row: orm.Audio) -> AudioDTO:
-        """
-        Build audio metadata from an ORM audio row
-
-        Args:
-            row (orm.Audio): The ORM audio row
-
-        Returns:
-            The row as a data transfer object, without the raw bytes
-        """
-        return cls(
-            kind=row.kind,
-            key=row.key,
-            reading=row.reading,
-            fmt=row.fmt,
-            source=row.source,
-            license=row.license,
-            attribution=row.attribution,
-        )
-
 
 # --- Aggregate Lookup Result ---
-@dataclass(slots=True)
-class LookupResult(Serializable):
+class LookupResult(BaseModel):
     """
     The aggregated result of a comprehensive word lookup
 
@@ -763,15 +717,51 @@ class LookupResult(Serializable):
     """
 
     query: str
-    entries: list[JMDictEntryDTO] = dfield(default_factory=list)
-    names: list[JMNeDictEntryDTO] = dfield(default_factory=list)
-    kanji: list[KanjiDTO] = dfield(default_factory=list)
-    furigana: list[FuriganaDTO] = dfield(default_factory=list)
+    entries: list[JMDictEntryDTO] = Field(default_factory=list)
+    names: list[JMNeDictEntryDTO] = Field(default_factory=list)
+    kanji: list[KanjiDTO] = Field(default_factory=list)
+    furigana: list[FuriganaDTO] = Field(default_factory=list)
     jlpt_vocab: JLPTVocabDTO | None = None
-    jlpt_kanji_levels: dict[str, int] = dfield(default_factory=dict)
-    jlpt_grammar: list[JLPTGrammarDTO] = dfield(default_factory=list)
-    sentences: list[SentenceDTO] = dfield(default_factory=list)
-    labels: dict[str, str] = dfield(default_factory=dict)
+    jlpt_kanji_levels: dict[str, int] = Field(default_factory=dict)
+    jlpt_grammar: list[JLPTGrammarDTO] = Field(default_factory=list)
+    sentences: list[SentenceDTO] = Field(default_factory=list)
+    labels: dict[str, str] = Field(default_factory=dict)
+
+    def has_entries(self) -> bool:
+        """
+        Report whether the result carries any dictionary entries
+
+        Returns:
+            True when at least one JMdict entry matched
+        """
+        return bool(self.entries)
+
+    def has_names(self) -> bool:
+        """
+        Report whether the result carries any proper names
+
+        Returns:
+            True when at least one JMnedict name matched
+        """
+        return bool(self.names)
+
+    def has_kanji(self) -> bool:
+        """
+        Report whether the result carries any kanji details
+
+        Returns:
+            True when at least one kanji profile is present
+        """
+        return bool(self.kanji)
+
+    def has_sentences(self) -> bool:
+        """
+        Report whether the result carries any example sentences
+
+        Returns:
+            True when at least one Tatoeba sentence matched
+        """
+        return bool(self.sentences)
 
     def has_jlpt(self) -> bool:
         """
@@ -781,3 +771,26 @@ class LookupResult(Serializable):
             True when a JLPT vocabulary entry or kanji level is present
         """
         return self.jlpt_vocab is not None or bool(self.jlpt_kanji_levels)
+
+
+KotobaseDTO: TypeAlias = (
+    GlossDTO
+    | SenseDTO
+    | KanjiFormDTO
+    | KanaFormDTO
+    | JMDictEntryDTO
+    | NameTranslationDTO
+    | JMNeDictEntryDTO
+    | KanjiDTO
+    | FuriganaDTO
+    | SentenceDTO
+    | JLPTVocabDTO
+    | JLPTKanjiDTO
+    | JLPTGrammarDTO
+    | RadicalDTO
+    | AudioDTO
+    | LookupResult
+)
+"""
+Represents any one of Kotobase's data transfer objects
+"""

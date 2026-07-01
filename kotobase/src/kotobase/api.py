@@ -14,6 +14,7 @@ simple and correct for read-only `SQLite`
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from sqlalchemy import text
@@ -26,12 +27,17 @@ from .db.dtos import (
     JLPTVocabDTO,
     JMDictEntryDTO,
     JMNeDictEntryDTO,
+    KanaFormDTO,
     KanjiDTO,
+    KanjiFormDTO,
+    Keyed,
     LookupResult,
     RadicalDTO,
+    SenseDTO,
     SentenceDTO,
 )
 from .db.uow import UnitOfWork
+from .exceptions import APIError
 
 _JLPT_LIST_METHODS = {
     "vocab": "list_vocab",
@@ -83,6 +89,24 @@ def _collect_codes(
     return list(codes)
 
 
+def _key(value: str | Keyed) -> str:
+    """
+    Coerce a lookup key, or a DTO that carries one, to its key string
+
+    A plain string passes through unchanged. Any DTO satisfying
+    [`Keyed`][kotobase.db.dtos.Keyed] returns its own `key`, so a result from
+    one call can be passed straight into another method without unpacking a
+    field by hand
+
+    Args:
+        value (str | Keyed): A key string, or a DTO that carries a lookup key
+
+    Returns:
+        The lookup key as a string
+    """
+    return value if isinstance(value, str) else value.key
+
+
 class Kotobase:
     """
     Stateless entry point for querying the kotobase database
@@ -94,7 +118,7 @@ class Kotobase:
         *,
         wildcard: bool = False,
         include_names: bool = False,
-        sentence_limit: int = 50,
+        sentence_limit: int | None = 50,
         entry_limit: int | None = None,
         with_labels: bool = False,
     ) -> LookupResult:
@@ -106,7 +130,8 @@ class Kotobase:
                 act as wildcards when `wildcard` is True
             wildcard (bool): When True, match forms as a `LIKE` pattern
             include_names (bool): When True, also search JMnedict proper names
-            sentence_limit (int): Maximum number of example sentences to return
+            sentence_limit (int | None): Maximum number of example
+                sentences to return
             entry_limit (int | None): Maximum number of dictionary entries to
                 return, or None for no limit
             with_labels (bool): When True, resolve every tag code in the result
@@ -177,18 +202,22 @@ class Kotobase:
             labels=labels,
         )
 
-    def kanji(self, literal: str) -> KanjiDTO | None:
+    def kanji(
+        self,
+        literal: str | KanjiDTO | KanjiFormDTO,
+    ) -> KanjiDTO | None:
         """
         Return the full profile of a single kanji
 
         Args:
-            literal (str): The kanji literal
+            literal (str | KanjiDTO | KanjiFormDTO): The kanji, as a character
+                or a DTO to read it from
 
         Returns:
             The kanji details, or None when it is not in the database
         """
         with UnitOfWork() as uow:
-            return uow.kanji.by_literal(literal)
+            return uow.kanji.by_literal(_key(literal))
 
     def search_kanji(
         self,
@@ -197,7 +226,7 @@ class Kotobase:
         grade: int | None = None,
         freq_max: int | None = None,
         jlpt: int | None = None,
-        limit: int = 100,
+        limit: int | None = 100,
     ) -> list[KanjiDTO]:
         """
         Search kanji by its scalar attributes
@@ -207,7 +236,7 @@ class Kotobase:
             grade (int | None): Required school grade
             freq_max (int | None): Maximum newspaper frequency rank
             jlpt (int | None): Required Tanos JLPT level
-            limit (int): Maximum number of kanji to return
+            limit (int | None): Maximum number of kanji to return
 
         Returns:
             The matching kanji ordered by frequency then character
@@ -221,13 +250,18 @@ class Kotobase:
                 limit=limit,
             )
 
-    def kanji_by_skip(self, code: str, *, limit: int = 100) -> list[KanjiDTO]:
+    def kanji_by_skip(
+        self,
+        code: str,
+        *,
+        limit: int | None = 100,
+    ) -> list[KanjiDTO]:
         """
         Find kanji with a given `SKIP` query code
 
         Args:
             code (str): The SKIP code such as `1-4-3`
-            limit (int): Maximum number of kanji to return
+            limit (int | None): Maximum number of kanji to return
 
         Returns:
             The matching kanji as data transfer objects
@@ -235,7 +269,12 @@ class Kotobase:
         with UnitOfWork() as uow:
             return uow.kanji.by_skip(code, limit=limit)
 
-    def stroke_svg(self, literal: str, *, raw: bool = False) -> str | None:
+    def stroke_svg(
+        self,
+        literal: str | KanjiDTO,
+        *,
+        raw: bool = False,
+    ) -> str | None:
         """
         Return a kanji's stroke order as SVG
 
@@ -244,14 +283,14 @@ class Kotobase:
         instead, which has no `<svg>` root or styling
 
         Args:
-            literal (str): The kanji character
+            literal (str | KanjiDTO): The kanji string or a `KanjiDTO` object
             raw (bool): When True, return the raw KanjiVG fragment unwrapped
 
         Returns:
             The stroke order SVG, or None when not available
         """
         with UnitOfWork() as uow:
-            return uow.kanji.stroke_svg(literal, raw=raw)
+            return uow.kanji.stroke_svg(_key(literal), raw=raw)
 
     def radicals(self) -> list[RadicalDTO]:
         """
@@ -263,32 +302,50 @@ class Kotobase:
         with UnitOfWork() as uow:
             return uow.radicals.list_radicals()
 
-    def by_radicals(self, radicals: list[str]) -> list[KanjiDTO]:
+    def by_radicals(
+        self,
+        radicals: Sequence[str | RadicalDTO],
+        *,
+        match: str = "all",
+    ) -> list[KanjiDTO]:
         """
-        Return the kanji that contains every one of the given radicals
+        Return the kanji that contain the given radicals
 
         Args:
-            radicals (list[str]): The radical components to require
+            radicals (list[str | RadicalDTO]): The radical components to match,
+                given as characters or RadicalDTO objects
+            match (str): `all` to require every radical (intersection), or
+                `any` to match kanji that contain at least one (union)
 
         Returns:
             The full details of each matching kanji
+
+        Raises:
+            APIError: If `match` is not `all` or `any`
         """
+        if match not in ("all", "any"):
+            raise APIError("Match Must Be 'all' Or 'any'")
+        chars = [_key(radical) for radical in radicals]
         with UnitOfWork() as uow:
-            literals = uow.radicals.kanji_by_radicals(radicals)
+            literals = uow.radicals.kanji_by_radicals(chars, match=match)
             return uow.kanji.bulk_fetch(literals)
 
-    def jlpt_level(self, word: str) -> int | None:
+    def jlpt_level(
+        self,
+        word: str | JMDictEntryDTO | JLPTVocabDTO,
+    ) -> int | None:
         """
         Return the `JLPT` vocabulary level of a word
 
         Args:
-            word (str): The word to look up
+            word (str | JMDictEntryDTO | JLPTVocabDTO): The word, as text or a
+                DTO to read it from
 
         Returns:
             The JLPT level from 1 to 5, or None when the word is not listed
         """
         with UnitOfWork() as uow:
-            vocab = uow.jlpt.vocab_by_word(word)
+            vocab = uow.jlpt.vocab_by_word(_key(word))
         return vocab.level if vocab else None
 
     def jlpt_list(
@@ -307,10 +364,13 @@ class Kotobase:
             Every item of the requested kind at the level
 
         Raises:
-            ValueError: If `kind` is not a known JLPT list kind
+            APIError: If `kind` is not a known JLPT list kind or `level` is
+                not between 1 and 5
         """
         if kind not in _JLPT_LIST_METHODS:
-            raise ValueError(f"unknown JLPT kind: {kind!r}")
+            raise APIError(f"Unknown JLPT Kind : {kind!r}")
+        if level not in range(1, 6):
+            raise APIError(f"JLPT Level Must Be 1 To 5, Got {level!r}")
         with UnitOfWork() as uow:
             if kind == "vocab":
                 return uow.jlpt.list_vocab(level)
@@ -320,20 +380,21 @@ class Kotobase:
 
     def names(
         self,
-        form: str | None = None,
+        form: str | JMNeDictEntryDTO | None = None,
         *,
         name_type: str | None = None,
         wildcard: bool = False,
-        limit: int = 50,
+        limit: int | None = 50,
     ) -> list[JMNeDictEntryDTO]:
         """
         Look up or browse `JMnedict` proper names
 
         Args:
-            form (str | None): A written or reading form to search for
+            form (str | JMNeDictEntryDTO | None): A written or reading form to
+                search for, as text or a name DTO to read it from
             name_type (str | None): A name type to browse, such as `place`
             wildcard (bool): When True, match the form as a `LIKE` pattern
-            limit (int): Maximum number of names to return
+            limit (int | None): Maximum number of names to return
 
         Returns:
             The matching names, empty when neither a form nor a type is given
@@ -343,7 +404,7 @@ class Kotobase:
                 return uow.jmnedict.browse_by_type(name_type, limit=limit)
             if form is not None:
                 return uow.jmnedict.search(
-                    form,
+                    _key(form),
                     wildcard=wildcard,
                     limit=limit,
                 )
@@ -351,44 +412,123 @@ class Kotobase:
 
     def sentences(
         self,
-        text_value: str,
+        text_value: str | JMDictEntryDTO,
         *,
-        limit: int = 20,
+        limit: int | None = 20,
     ) -> list[SentenceDTO]:
         """
         Return `Tatoeba` Japanese example sentences containing the given text
 
         Args:
-            text_value (str): The text to search for
-            limit (int): Maximum number of sentences to return
+            text_value (str | JMDictEntryDTO): The text to search for, as a
+                string or a dictionary entry to read its headword from
+            limit (int | None): Maximum number of sentences to return
 
         Returns:
             The matching example sentences
         """
         with UnitOfWork() as uow:
-            return uow.sentences.search_containing(text_value, limit=limit)
+            return uow.sentences.search_containing(
+                _key(text_value), limit=limit
+            )
+
+    def words_with_kanji(
+        self,
+        kanji: str | KanjiDTO,
+        *,
+        limit: int | None = 50,
+    ) -> list[JMDictEntryDTO]:
+        """
+        Return dictionary entries whose written form uses a kanji
+
+        Args:
+            kanji (str | KanjiDTO): The kanji character, or a KanjiDTO to read
+                the character from
+            limit (int | None): Maximum entries to return, or None for no limit
+
+        Returns:
+            The entries that use the kanji in a written form
+        """
+        literal = _key(kanji)
+        with UnitOfWork() as uow:
+            return uow.jmdict.search_form(
+                f"*{literal}*", wildcard=True, limit=limit
+            )
+
+    def sentences_with_kanji(
+        self,
+        kanji: str | KanjiDTO,
+        *,
+        limit: int | None = 20,
+    ) -> list[SentenceDTO]:
+        """
+        Return example sentences that contain a kanji
+
+        Args:
+            kanji (str | KanjiDTO): The kanji character, or a KanjiDTO to read
+                the character from
+            limit (int | None): Maximum number of sentences to return
+
+        Returns:
+            The matching example sentences with their translations
+        """
+        literal = _key(kanji)
+        with UnitOfWork() as uow:
+            return uow.sentences.search_containing(literal, limit=limit)
+
+    def resolve_references(
+        self,
+        source: JMDictEntryDTO | SenseDTO | str,
+    ) -> list[JMDictEntryDTO]:
+        """
+        Resolve the cross-references and antonyms of a sense or entry
+
+        Args:
+            source (JMDictEntryDTO | SenseDTO | str): The entry or sense whose
+                xref and antonym codes to resolve, or a single reference code
+
+        Returns:
+            The referenced entries, de-duplicated by sequence number
+        """
+        if isinstance(source, str):
+            codes = [source]
+        elif isinstance(source, SenseDTO):
+            codes = [*source.xref, *source.antonym]
+        else:
+            codes = [
+                code
+                for sense in source.senses
+                for code in (*sense.xref, *sense.antonym)
+            ]
+        seen: dict[int, JMDictEntryDTO] = {}
+        with UnitOfWork() as uow:
+            for code in codes:
+                for entry in uow.jmdict.resolve_reference(code):
+                    seen.setdefault(entry.id, entry)
+        return list(seen.values())
 
     def furigana(
         self,
-        word: str,
+        word: str | JMDictEntryDTO | KanjiFormDTO | KanaFormDTO,
         reading: str | None = None,
     ) -> list[FuriganaDTO]:
         """
         Return furigana segmentation for a written form
 
         Args:
-            word (str): The written spelling to look up
+            word (str | JMDictEntryDTO | KanjiFormDTO | KanaFormDTO): The
+                written spelling, as text or a DTO to read it from
             reading (str | None): A specific reading to narrow the match
 
         Returns:
             The matching furigana segmentations
         """
         with UnitOfWork() as uow:
-            return uow.furigana.for_text(word, reading)
+            return uow.furigana.for_text(_key(word), reading)
 
     def audio(
         self,
-        key: str,
+        key: str | KanjiDTO | JMDictEntryDTO,
         *,
         kind: str | None = None,
     ) -> list[AudioDTO]:
@@ -396,7 +536,8 @@ class Kotobase:
         Return pronunciation audio metadata for a lookup key
 
         Args:
-            key (str): The lookup key, such as a kanji or word
+            key (str | KanjiDTO | JMDictEntryDTO): The lookup key, such as a
+                kanji or word, as a string or a DTO to read it from
             kind (str | None): Restrict to a clip kind when given
 
         Returns:
@@ -407,11 +548,11 @@ class Kotobase:
                 installed
         """
         with UnitOfWork() as uow:
-            return uow.audio.for_key(key, kind=kind)
+            return uow.audio.for_key(_key(key), kind=kind)
 
     def audio_bytes(
         self,
-        key: str,
+        key: str | KanjiDTO | JMDictEntryDTO,
         *,
         reading: str | None = None,
         kind: str | None = None,
@@ -420,7 +561,8 @@ class Kotobase:
         Return the file name and raw bytes of each matching audio clip
 
         Args:
-            key (str): The lookup key, such as a kanji or word
+            key (str | KanjiDTO | JMDictEntryDTO): The lookup key, such as a
+                kanji or word, as a string or a DTO to read it from
             reading (str | None): Select a specific clip by its reading, or
                 None to return every matching clip
             kind (str | None): Restrict to a clip kind when given
@@ -434,12 +576,14 @@ class Kotobase:
                 installed
         """
         with UnitOfWork() as uow:
-            payloads = uow.audio.payloads(key, reading=reading, kind=kind)
+            payloads = uow.audio.payloads(
+                _key(key), reading=reading, kind=kind
+            )
         return payloads
 
     def save_audio(
         self,
-        key: str,
+        key: str | KanjiDTO | JMDictEntryDTO,
         dest: str | Path,
         *,
         reading: str | None = None,
@@ -449,7 +593,8 @@ class Kotobase:
         Save the matching pronunciation audio clips into a directory
 
         Args:
-            key (str): The lookup key, such as a kanji or word
+            key (str | KanjiDTO | JMDictEntryDTO): The lookup key, such as a
+                kanji or word, as a string or a DTO to read it from
             dest (str | Path): The directory to write the clips into, created
                 when it does not exist
             reading (str | None): Save only the clip with this reading when
@@ -464,7 +609,9 @@ class Kotobase:
                 installed
         """
         with UnitOfWork() as uow:
-            payloads = uow.audio.payloads(key, reading=reading, kind=kind)
+            payloads = uow.audio.payloads(
+                _key(key), reading=reading, kind=kind
+            )
         if not payloads:
             return []
         directory = Path(dest)
@@ -480,14 +627,14 @@ class Kotobase:
         self,
         query: str,
         *,
-        limit: int = 50,
+        limit: int | None = 50,
     ) -> list[JMDictEntryDTO]:
         """
         Return entries whose English meaning matches the query
 
         Args:
             query (str): The full text search expression to run against glosses
-            limit (int): Maximum number of entries to return
+            limit (int | None): Maximum number of entries to return
 
         Returns:
             The matching dictionary entries
@@ -531,7 +678,7 @@ class Kotobase:
         *,
         wildcard: bool = False,
         include_names: bool = False,
-        sentence_limit: int = 50,
+        sentence_limit: int | None = 50,
         entry_limit: int | None = None,
         with_labels: bool = False,
     ) -> LookupResult:
@@ -543,7 +690,8 @@ class Kotobase:
             query (str): The query, written in kana or kanji
             wildcard (bool): When True, match forms as a `LIKE` pattern
             include_names (bool): When True, also search JMnedict proper names
-            sentence_limit (int): Maximum number of example sentences to return
+            sentence_limit (int | None): Maximum number of example
+                sentences to return
             entry_limit (int | None): Maximum number of dictionary entries to
                 return, or None for no limit
             with_labels (bool): When True, resolve tag codes to descriptions

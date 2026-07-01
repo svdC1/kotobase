@@ -15,7 +15,7 @@ info: Pre-Requisite
       [`Build Pipeline`][kotobase.db.builder] and only queried here
 
     - Until it exists, every query fails with a
-      [`DatabaseNotFoundError`][kotobase.db.connection.DatabaseNotFoundError]
+      [`DatabaseNotFoundError`][kotobase.exceptions.DatabaseNotFoundError]
       that points the caller at the build or pull [`CLI`][kotobase.cli]
       commands
 """
@@ -31,20 +31,8 @@ from typing import Any
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
+from ..exceptions import DatabaseNotFoundError
 from .builder import config
-
-
-class DatabaseNotFoundError(RuntimeError):
-    """
-    Raised when a query is attempted before the database exists
-    """
-
-
-class AudioDatabaseNotFoundError(DatabaseNotFoundError):
-    """
-    Raised when audio bytes are requested but the optional audio pack is not
-    installed
-    """
 
 
 def _require_database() -> Path:

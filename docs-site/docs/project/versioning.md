@@ -32,9 +32,8 @@ top-level `kotobase` package and the documented command line
     - `kotobase.__version__`
     - The [`Kotobase`][kotobase.api.Kotobase] class and its documented methods
     - All [`DTOs`][kotobase.db.dtos]
-    - The [`DatabaseNotFoundError`][kotobase.db.connection.DatabaseNotFoundError]
-      and [`AudioDatabaseNotFoundError`][kotobase.db.connection.AudioDatabaseNotFoundError]
-      exceptions
+    - The [`exception hierarchy`][kotobase.exceptions] rooted at `KotobaseError`,
+      re-exported from the top-level package
     - All `kotobase` CLI command names and their documented options
 
 ## What Is Not Public
@@ -50,7 +49,7 @@ top-level `kotobase` package and the documented command line
     - [`connection`][kotobase.db.connection]
     - [`builder`][kotobase.db.builder]
     - [`terminal_output`][kotobase.terminal_output]
-    - The exact `CLI` output formatting and wording *(Only the `--json` shape + the commands and options are stable)*
+    - The exact `CLI` output formatting and wording. The `--json` keys mirror the public `DTO` fields and keep Japanese text verbatim, but the exact serialization shape may change between `0.x` minor releases
     - The on-disk database file layout and any raw build artifacts
 
 ## Database Schema

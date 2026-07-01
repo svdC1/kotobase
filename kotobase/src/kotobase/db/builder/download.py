@@ -29,6 +29,7 @@ from typing import Any
 import requests
 import zstandard
 
+from ...exceptions import DatabaseExistsError, DownloadError
 from ...terminal_output import THEMED_CONSOLE, download_progress_bar
 from .config import (
     AUDIO_ASSET,
@@ -90,11 +91,11 @@ def _get_github_asset_url(
         Tuple containing the name of the assets and its download URL
 
     Raises:
-        requests.HTTPError: If the GitHub API request fails
-        RuntimeError: If `asset` is not present on the `tag` / latest release,
-            if the `asset` regex expression (when `regex=True`) has no matches
-            in the `tag` / latest release, if the tag / latest release of
-            `repo` has no assets, or if the api's `JSON` response is malformed
+        DownloadError: If the GitHub API request fails, if `asset` is not
+            present on the `tag` / latest release, if the `asset` regex
+            expression (when `regex=True`) has no matches in the `tag` / latest
+            release, if the tag / latest release of `repo` has no assets, or if
+            the api's `JSON` response is malformed
     """
 
     # Resolve Tag
@@ -130,17 +131,22 @@ def _get_github_asset_url(
             timeout=30,
         )
 
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.RequestException as e:
+        raise DownloadError(
+            f"GitHub API Request Failed For '{api}' : {e}"
+        ) from e
     try:
         resp_json: dict[str, Any] = response.json()
     except ValueError as e:
-        raise RuntimeError(f"Received Malformed API Response : {e}") from e
+        raise DownloadError(f"Received Malformed API Response : {e}") from e
 
     if not isinstance(resp_json, dict):
-        raise RuntimeError("Received Malformed API Response")
+        raise DownloadError("Received Malformed API Response")
 
     if "assets" not in resp_json:
-        raise RuntimeError(f"Release '{api}' Has No Assets")
+        raise DownloadError(f"Release '{api}' Has No Assets")
 
     if asset is None:
         first = resp_json["assets"][0]
@@ -153,7 +159,7 @@ def _get_github_asset_url(
             None,
         )
         if chosen is None:
-            raise RuntimeError(
+            raise DownloadError(
                 f"No Matching Release Asset Found For '{asset!r}' In "
                 f"'{api}' Release"
             )
@@ -163,7 +169,7 @@ def _get_github_asset_url(
             (a for a in resp_json["assets"] if a["name"] == asset), None
         )
         if chosen is None:
-            raise RuntimeError(
+            raise DownloadError(
                 f"No Matching Release Asset Found For '{asset}' In "
                 f"'{api}' Release"
             )
@@ -190,8 +196,8 @@ def resolve_upstream_source(
         A tuple of the local filename to save under and the URL to fetch
 
     Raises:
-        ValueError: If the source has neither a URL nor a GitHub repository
-        RuntimeError: If a matching GitHub release asset cannot be found
+        DownloadError: If the source has neither a URL nor a GitHub repository,
+            or if a matching GitHub release asset cannot be found
     """
     if source.url:
         name = source.url.split("?")[0].rstrip("/").split("/")[-1]
@@ -200,7 +206,7 @@ def resolve_upstream_source(
         return name, source.url
 
     if not source.github_repo:
-        raise ValueError(
+        raise DownloadError(
             f"Source '{source.key!r}' Has No `url` or `github_repo`"
         )
     if source.asset_pattern:
@@ -240,22 +246,28 @@ def _download_stream(
             task when download end
 
     Raises:
-        requests.HTTPError: If the download request fails
+        DownloadError: If the download fails for any reason
     """
     part = dest.with_name(dest.name + ".part")
-    with session.get(url, stream=True, timeout=120) as response:
-        response.raise_for_status()
-        # Get File Size
-        total = int(response.headers.get("content-length", 0)) or None
-        with download_progress_bar() as progress:
-            task = progress.add_task(label, total=total)
-            with open(part, "wb") as handle:
-                for chunk in response.iter_content(chunk_size=65536):
-                    handle.write(chunk)
-                    progress.update(task, advance=len(chunk))
-            if clear:
-                progress.update(task, visible=False)
-    part.replace(dest)
+    try:
+        with session.get(url, stream=True, timeout=120) as response:
+            response.raise_for_status()
+            # Get File Size
+            total = int(response.headers.get("content-length", 0)) or None
+            with download_progress_bar() as progress:
+                task = progress.add_task(label, total=total)
+                with open(part, "wb") as handle:
+                    for chunk in response.iter_content(chunk_size=65536):
+                        handle.write(chunk)
+                        progress.update(task, advance=len(chunk))
+                if clear:
+                    progress.update(task, visible=False)
+        part.replace(dest)
+    except Exception as e:
+        part.unlink(missing_ok=True)
+        raise DownloadError(
+            f"Couldn't Download File At '{url}' : '{e}'"
+        ) from e
 
 
 def download(
@@ -272,6 +284,9 @@ def download(
         force (bool): When True, re download even if the file already exists
         session (requests.Session | None): Optional shared session, a new one
             is created when omitted
+
+    Raises:
+        DownloadError: If the download fails for any reason
 
     Returns:
         The path of the downloaded file
@@ -321,7 +336,7 @@ def download_all(
             sources that failed left out
 
     Raises:
-        requests.HTTPError: If a required source fails to download
+        DownloadError: If a required source fails to download
     """
     session = session or _session()
     if keys is None:
@@ -334,7 +349,7 @@ def download_all(
         source = SOURCES[key]
         try:
             result[key] = download(source, force=force, session=session)
-        except Exception as e:
+        except DownloadError as e:
             if source.optional:
                 THEMED_CONSOLE.print(
                     f"[warning]Skipping Optional Source Failure[/] For [info]"
@@ -359,8 +374,8 @@ def _download_and_decompress(url: str, destination: Path, label: str) -> None:
         label (str): Short label shown on the progress bar
 
     Raises:
-        requests.HTTPError: If the download request fails
-        Exception: If any I/O or network error occurs
+        DownloadError: If the download request fails,
+            or any I/O or network error occurs
     """
     part = destination.with_name(destination.name + ".part")
     decompressor = zstandard.ZstdDecompressor()
@@ -404,12 +419,12 @@ def _download_and_decompress(url: str, destination: Path, label: str) -> None:
     except Exception as e:
         # All context managers are closed here, freeing file write locks
         part.unlink(missing_ok=True)
-        raise e
+        raise DownloadError(f"Failed To Download {url} : {e}") from e
 
 
 def pull_db(*, tag: str | None = None, force: bool = False) -> Path:
     """
-    Downloada and decompresses the prebuilt core database
+    Downloads and decompresses the prebuilt core database
 
     Args:
         tag (str | None): Release tag to pull from, or None for the latest
@@ -419,12 +434,13 @@ def pull_db(*, tag: str | None = None, force: bool = False) -> Path:
         The path of the decompressed database
 
     Raises:
-        FileExistsError: If the database already exists and `force` is False
+        DatabaseExistsError: If the database already exists and `force` is
+            False
     """
     ensure_dirs()
     destination = db_path()
     if destination.exists() and not force:
-        raise FileExistsError(
+        raise DatabaseExistsError(
             f"Core Database Already Exists At '{destination}',"
             f" Pass Force To Replace"
         )
@@ -447,12 +463,13 @@ def pull_audio(*, tag: str | None = None, force: bool = False) -> Path:
         The path of the decompressed audio pack
 
     Raises:
-        FileExistsError: If the audio pack already exists and `force` is False
+        DatabaseExistsError: If the audio pack already exists and `force` is
+            False
     """
     ensure_dirs()
     destination = audio_db_path()
     if destination.exists() and not force:
-        raise FileExistsError(
+        raise DatabaseExistsError(
             f"Audio Pack Database Already Exists At '{destination}', Pass"
             f" Force To Replace"
         )
