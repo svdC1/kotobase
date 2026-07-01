@@ -15,22 +15,28 @@ info: Command Groups
 
 from __future__ import annotations
 
-import functools
 import io
 import json
 import shutil
 import sys
-from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, Any, ParamSpec, TypeVar
+from typing import Annotated, Any
 
 import typer
+from pydantic import BaseModel
 
 from . import __version__
 from . import terminal_output as out
 from .api import Kotobase
 from .db import builder
-from .db.connection import AudioDatabaseNotFoundError, DatabaseNotFoundError
+from .exceptions import (
+    AudioDatabaseNotFoundError,
+    DatabaseExistsError,
+    DatabaseNotFoundError,
+    DownloadError,
+    KotobaseError,
+    SourceExtractionError,
+)
 from .terminal_output import THEMED_CONSOLE
 
 # --- App Definition ---
@@ -79,48 +85,11 @@ Shared [`Kotobase`][kotobase.api.Kotobase] instance which executes query
 commands
 """
 
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
-
-
-def _guard_no_db(func: Callable[_P, _R]) -> Callable[_P, _R]:
-    """
-    CLI command decorator which displays a user-friendly error message and
-    raises `typer.Exit` when the `kotobase.db` file doesn't exist in the cache
-    directory
-
-    Args:
-        func (Callable[_P, _R]): The CLI command to wrap
-
-    Returns:
-        The wrapped command function with all its metadata preserved
-    """
-
-    @functools.wraps(func)
-    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
-        try:
-            return func(*args, **kwargs)
-        except DatabaseNotFoundError as e:
-            db = (
-                "Audio"
-                if isinstance(e, AudioDatabaseNotFoundError)
-                else "Core"
-            )
-
-            THEMED_CONSOLE.print(
-                f"[danger]⊗ Couldn't Find The {db} Database -> Run [/]"
-                f"[heading]kotobase db pull[/][danger] Or "
-                f"[/][heading]kotobase db build[/]"
-            )
-            raise typer.Exit(code=1) from None
-
-    return wrapper
-
 
 def _to_json(obj: Any) -> str:
     """
-    Serialize a result object, or a list of them, to `JSON` text preserving
-    non-ascii characters using `json.dumps`
+    Serialize a result object, or a list of them, to `JSON` text keeping
+    non-ascii characters verbatim
 
     Args:
         obj (Any): A data transfer object, a list of them, or a plain value
@@ -128,15 +97,18 @@ def _to_json(obj: Any) -> str:
     Returns:
         The object encoded as a `JSON` string
     """
+    if isinstance(obj, BaseModel):
+        return obj.model_dump_json()
     if isinstance(obj, list):
         return json.dumps(
-            [o.to_dict() if hasattr(o, "to_dict") else o for o in obj],
+            [
+                item.model_dump(mode="json")
+                if isinstance(item, BaseModel)
+                else item
+                for item in obj
+            ],
             ensure_ascii=False,
         )
-
-    if hasattr(obj, "to_json"):
-        return str(obj.to_json())
-
     return json.dumps(obj, ensure_ascii=False)
 
 
@@ -206,7 +178,6 @@ def version() -> None:
 
 
 @lookup_app.command(name="all")
-@_guard_no_db
 def lookup_all(
     query: Annotated[
         str,
@@ -273,7 +244,6 @@ def lookup_all(
 
 
 @lookup_app.command(name="kanji")
-@_guard_no_db
 def lookup_kanji(
     literal: Annotated[
         str,
@@ -305,7 +275,6 @@ def lookup_kanji(
 
 
 @lookup_app.command(name="jlpt")
-@_guard_no_db
 def lookup_jlpt(
     word: Annotated[
         str,
@@ -322,7 +291,6 @@ def lookup_jlpt(
 
 
 @lookup_app.command(name="kanji-find")
-@_guard_no_db
 def lookup_find_kanji(
     stroke: Annotated[
         int | None,
@@ -403,7 +371,6 @@ def lookup_find_kanji(
 
 
 @lookup_app.command(name="radicals")
-@_guard_no_db
 def lookup_radicals(
     components: Annotated[
         list[str] | None,
@@ -438,7 +405,6 @@ def lookup_radicals(
 
 
 @lookup_app.command(name="jlpt-list")
-@_guard_no_db
 def lookup_jlpt_list(
     kind: Annotated[
         str,
@@ -481,7 +447,6 @@ def lookup_jlpt_list(
 
 
 @lookup_app.command(name="names")
-@_guard_no_db
 def lookup_names(
     form: Annotated[
         str | None,
@@ -517,7 +482,6 @@ def lookup_names(
 
 
 @lookup_app.command(name="meaning")
-@_guard_no_db
 def lookup_meaning(
     query: Annotated[
         str,
@@ -554,7 +518,6 @@ def lookup_meaning(
 
 
 @lookup_app.command(name="sentences")
-@_guard_no_db
 def lookup_sentences(
     text_value: Annotated[
         str,
@@ -590,7 +553,6 @@ def lookup_sentences(
 
 
 @lookup_app.command(name="furigana")
-@_guard_no_db
 def lookup_furigana(
     word: Annotated[
         str,
@@ -619,7 +581,6 @@ def lookup_furigana(
 
 
 @lookup_app.command(name="kanji-svg")
-@_guard_no_db
 def lookup_kanji_svg(
     literal: Annotated[
         str,
@@ -647,7 +608,6 @@ def lookup_kanji_svg(
 
 
 @lookup_app.command(name="audio")
-@_guard_no_db
 def lookup_audio(
     key: Annotated[
         str,
@@ -693,7 +653,6 @@ def lookup_audio(
 
 
 @db_app.command(name="info")
-@_guard_no_db
 def db_info() -> None:
     """
     Show Build Metadata For The Active Database
@@ -734,26 +693,9 @@ def db_build(
     """
     Download Upstream Sources And Build The Database Locally
     """
-    try:
-        builder.build_core(
-            force=force,
-            include_links=with_links,
-        )
-    except FileExistsError:
-        THEMED_CONSOLE.print(
-            "[danger]⊗ Database Already Exists -> Run[/][heading]"
-            "kotobase db build --force[/][danger] To Rebuild[/]"
-        )
-        raise typer.Exit(1) from None
+    builder.build_core(force=force, include_links=with_links)
     if with_audio:
-        try:
-            builder.build_audio(force=force)
-        except FileExistsError:
-            THEMED_CONSOLE.print(
-                "[danger]⊗ Audio Database Already Exists -> Run[/][heading]"
-                "kotobase db build --force[/][danger] To Rebuild[/]"
-            )
-            raise typer.Exit(1) from None
+        builder.build_audio(force=force)
 
 
 @db_app.command(name="pull")
@@ -785,23 +727,9 @@ def db_pull(
     """
     Download a Pre-Built Database From A GitHub Release
     """
-    try:
-        builder.pull_db(tag=tag, force=force)
-    except FileExistsError:
-        THEMED_CONSOLE.print(
-            "[danger]⊗ Database Already Exists -> Run[/][heading]"
-            "kotobase db pull --force[/][danger] To Replace[/]"
-        )
-        raise typer.Exit(1) from None
+    builder.pull_db(tag=tag, force=force)
     if with_audio:
-        try:
-            builder.build_audio(force=force)
-        except FileExistsError:
-            THEMED_CONSOLE.print(
-                "[danger]⊗ Audio Database Already Exists -> Run[/][heading]"
-                "kotobase db pull --force[/][danger] To Replace[/]"
-            )
-            raise typer.Exit(1) from None
+        builder.pull_audio(tag=tag, force=force)
 
 
 # --- Cache Commands ---
@@ -887,15 +815,58 @@ def cache_size() -> None:
     out.render_cache_size(sizes)
 
 
-if __name__ == "__main__":
+def _render_error(exc: KotobaseError) -> None:
+    """
+    Render a Kotobase error as a themed, user-friendly message
+
+    Args:
+        exc (KotobaseError): The error raised while running a command
+    """
+    if isinstance(exc, AudioDatabaseNotFoundError):
+        THEMED_CONSOLE.print(
+            "[danger]⊗ Couldn't Find The Audio Database -> Run [/]"
+            "[heading]kotobase db pull[/][danger] Or "
+            "[/][heading]kotobase db build[/]"
+        )
+    elif isinstance(exc, DatabaseNotFoundError):
+        THEMED_CONSOLE.print(
+            "[danger]⊗ Couldn't Find The Core Database -> Run [/]"
+            "[heading]kotobase db pull[/][danger] Or "
+            "[/][heading]kotobase db build[/]"
+        )
+    elif isinstance(exc, DatabaseExistsError):
+        THEMED_CONSOLE.print(
+            f"[danger]⊗ {exc}[/]  [muted](Use --force To Replace)[/]"
+        )
+    elif isinstance(exc, DownloadError):
+        THEMED_CONSOLE.print(f"[danger]⊗ Download Failed -> {exc}[/]")
+    elif isinstance(exc, SourceExtractionError):
+        THEMED_CONSOLE.print(f"[danger]⊗ Source Processing Failed -> {exc}[/]")
+    else:
+        THEMED_CONSOLE.print(f"[danger]⊗ {exc}[/]")
+
+
+def main() -> None:
+    """
+    CLI entry point
+
+    Forces UTF-8 output and renders [`KotobaseError`][kotobase.exceptions]
+    failures as friendly messages with a non-zero exit instead of tracebacks
+    """
     # Force UTF-8 on stdout and stderr so Japanese text survives redirection.
     # On Windows, a redirected stream defaults to a legacy code page (cp1252)
     # that cannot encode kana or kanji, which otherwise crashes piped or `>`
     # output
-
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     if isinstance(sys.stderr, io.TextIOWrapper):
         sys.stderr.reconfigure(encoding="utf-8")
+    try:
+        app()
+    except KotobaseError as exc:
+        _render_error(exc)
+        raise SystemExit(1) from exc
 
-    app()
+
+if __name__ == "__main__":
+    main()

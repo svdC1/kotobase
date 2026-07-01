@@ -46,6 +46,7 @@ import bz2
 import csv
 import gzip
 import json
+import logging
 import re
 import tarfile
 import zipfile
@@ -56,7 +57,12 @@ from typing import Any, TypeAlias
 
 from lxml import etree
 
+from ...exceptions import MalformedSourceError, SourceExtractionError
 from . import config
+
+# --- Module Logger ---
+
+LOGGER = logging.getLogger(__name__)
 
 # --- Extractor Contract ---
 
@@ -172,14 +178,16 @@ def _require_int(value: str | None) -> int:
         The parsed integer
 
     Raises:
-        ValueError: If the text is missing or can't be parsed
+        MalformedSourceError: If the text is missing or can't be parsed
     """
     if value is None:
-        raise ValueError("Missing Required Integer Field")
+        raise MalformedSourceError("Missing Required Integer Field")
     try:
         return int(value)
     except ValueError as e:
-        raise ValueError("Required Integer Field Can't Be Parsed") from e
+        raise MalformedSourceError(
+            f"Required Integer Field '{value}' Can't Be Parsed"
+        ) from e
 
 
 def stream_elements(
@@ -390,10 +398,10 @@ def _read_tar_bz2_member(path: Path, suffix: str) -> Iterator[list[str]]:
             None,
         )
         if member is None:
-            raise FileNotFoundError(f"No Member Ending In '{suffix!r}'")
+            raise SourceExtractionError(f"No Member Ending In '{suffix!r}'")
         handle = archive.extractfile(member)
         if handle is None:
-            raise FileNotFoundError(
+            raise SourceExtractionError(
                 f"No Data Found For Member With Suffix '{suffix}'"
             )
         for raw in handle:
@@ -999,10 +1007,10 @@ def extract_furigana(path: Path) -> Iterator[DatabaseRow]:
             None,
         )
         if member is None:
-            raise FileNotFoundError(f"No JSON Member In '{path}'")
+            raise SourceExtractionError(f"No JSON Member In '{path}'")
         handle = archive.extractfile(member)
         if handle is None:
-            raise FileNotFoundError(f"Couldn't Read '{member.name}'")
+            raise SourceExtractionError(f"Couldn't Read '{member.name}'")
         records = json.load(handle)
 
     for record in records:

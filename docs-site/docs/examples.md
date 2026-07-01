@@ -18,209 +18,130 @@ kb = Kotobase()
     All returned objects are typed, immutable [`DTOs`][kotobase.db.dtos] that do not depend on an open
     session, so they are safe to keep, pass around and serialize
 
-## Comprehensive Lookup
+## Build A Flashcard Deck
 
-`lookup` Aggregates Every Source Into One Result
-
-```python
-result = kb.lookup("日本語")
-result = kb("日本語")  # (1)!
-
-for entry in result.entries:
-    print(
-        f"Written Form : {entry.headword}",
-        f"High-Frequency Word ? : {entry.is_common}"
-        )
-    for sense in entry.senses:
-        print(f"Meanings : {''.join(g.text for g in sense.glosses)}")
-
-for kanji in result.kanji:
-    print(
-        f"Literal: {kanji.literal}",
-        f"Meanings: {kanji.meanings}"
-        )
-```
-
-1. Alias For `kb.lookup`
-
-### Options
+Turn a `Tanos JLPT` level into study cards for an `SRS` app like `Anki`. Each
+card pulls the reading, meaning and frequency from the dictionary, the stroke
+order for every kanji, and a pronunciation clip, then exports as `JSON` with
+Japanese text kept verbatim
 
 ```python
-result = kb.lookup(
-    "食べ*",
-    wildcard=True, # (1)!
-    include_names=True, # (2)!
-    sentence_limit=10,  # (3)!
-    with_labels=True,  # (4)!
-)
-print(result.labels["sl"])
+import json
+from pathlib import Path
+
+from kotobase import AudioDatabaseNotFoundError, Kotobase
+
+kb = Kotobase()
+
+
+def build_deck(level: int, audio_dir: Path) -> list[dict]:
+    cards: list[dict] = []
+    for vocab in kb.jlpt_list("vocab", level):  # (1)!
+        word = vocab.word or vocab.reading
+        if not word:
+            continue
+
+        result = kb.lookup(word)  # (2)!
+        readings = kb.furigana(word)  # (3)!
+        card = {
+            "word": word,
+            "reading": vocab.reading,
+            "meaning": vocab.meaning,
+            "common": any(e.is_common for e in result.entries),  # (4)!
+            "parts_of_speech": (
+                result.entries[0].all_pos() if result.entries else []
+            ),  # (5)!
+            "furigana": readings[0].segments if readings else [],
+            "kanji": [
+                {"literal": k.literal, "stroke_order": kb.stroke_svg(k.literal)}
+                for k in result.kanji  # (6)!
+            ],
+        }
+
+        try:
+            saved = kb.save_audio(word, audio_dir)  # (7)!
+            card["audio"] = [path.name for path in saved]
+        except AudioDatabaseNotFoundError:
+            card["audio"] = []
+
+        cards.append(card)
+    return cards
+
+
+deck = build_deck(5, Path("audio"))
+Path("n5_deck.json").write_text(
+    json.dumps(deck, ensure_ascii=False, indent=2), encoding="utf-8"
+)  # (8)!
 ```
 
-1. Treat `*` As A Wildcard
-2. Include Proper Names From `JMNedict`
-3. Return 10 Example Sentences + Translations
-4. Resolve `JMDict` / `JMNedict` Tag Codes To Their Descriptions *(sl -> slang)*
+1. Every N5 vocabulary item from the `Tanos` list
+2. Enrich the word with its full dictionary entry and per-kanji details
+3. Per-form furigana segments, ready to render as ruby text
+4. A pure `DTO` field, so a deck can prioritise common words
+5. A pure `DTO` helper, the unique parts of speech across every sense
+6. A renderable stroke-order `SVG` for each kanji in the word
+7. Writes `<reading>.<fmt>` into the directory, needs the optional audio pack
+8. Import-ready, with Japanese text and any audio file names kept verbatim
 
----
+## Explore Related Words
 
-## Search Kanji
-
-Filter Kanji By Scalar Attributes, Or Look Them Up By SKIP Code
+Power a writing assistant by expanding one entry into the words around it: its
+meaning with human-readable tags, the entries its cross-references and antonyms
+point to, other vocabulary that shares a kanji, and a natural usage example
 
 ```python
-n5 = kb.search_kanji(jlpt=5, limit=50)  # (1)!
-eight_strokes = kb.search_kanji(stroke_count=8, grade=2) # (2)!
-by_skip = kb.kanji_by_skip("1-4-3") # (3)!
+import pprint
+
+from kotobase import Kotobase
+
+kb = Kotobase()
+
+
+def related_words(word: str) -> dict:
+    result = kb.lookup(word, with_labels=True)  # (1)!
+    if not result.entries:
+        return {}
+
+    entry = result.entries[0]
+    sense = entry.senses[0]
+    panel = {
+        "word": entry.headword,
+        "meaning": [gloss.text for gloss in sense.glosses],
+        "tags": sense.expand_tags(result.labels),  # (2)!
+        "see_also": [e.headword for e in kb.resolve_references(entry)],  # (3)!
+    }
+
+    if entry.kanji:
+        kanji = entry.kanji[0].text[0]
+        panel["shares_kanji"] = [
+            e.headword
+            for e in kb.words_with_kanji(kanji, limit=8)  # (4)!
+            if e.headword != entry.headword
+        ]
+        panel["example"] = next(
+            (s.text for s in kb.sentences_with_kanji(kanji, limit=1)), None
+        )  # (5)!
+
+    return panel
+
+
+pprint.pp(related_words("勉強"))
 ```
 
-1. First 50 Kanji Listed In `Tanos' N5 JLPT List`
-2. Only Kanji That Have 8 Strokes And Are Learned In The Second Grade
-3. Kanji That Are Vertically Split Into Left / Right Parts `(1-)`, Where The Left Part Has 4 Strokes `(1-4)`, And The Right Part Has 3 Strokes `(1-4-3)` *(e.g 那)*. Read More About The [`System of Kanji Indexing by Patterns`](https://www.edrdg.org/wwwjdic/SKIP.html)
+1. `with_labels` fills `result.labels` with each tag code's description
+2. Resolve this sense's tag codes to descriptions on the `DTO` itself
+3. Follow the entry's cross-references and antonyms to the real entries
+4. Other words written with the kanji, accepts a string or a `KanjiDTO`
+5. A natural sentence using the kanji, `None` when nothing matches
+
+???+ tip "Async Applications"
+    The read layer is `thread-safe`, so a web app can run any lookup off the
+    event loop without blocking it
+
+    ```python
+    import asyncio
 
 
-## Radicals
-
-Find Kanji Which Contain Certain `Radicals`
-
-```python
-radicals = kb.radicals()  # (1)!
-matches = kb.by_radicals(["言", "五"]) #  (2)!
-```
-
-1. View Every Search Radical
-2. Find All Kanji That Contain Both `言` + `五` Radicals *(e.g 語)*
-
-## Proper Names
-
-```python
-tanaka = kb.names("田中")  # (1)!
-places = kb.names(name_type="place")  #(2)!
-```
-
-1. Search A Proper Name Entry
-2. Search By Name Type
-
-## Search By Meaning
-
-Find Entries From Their English Gloss Using Full Text Search
-
-```python
-for entry in kb.search_meaning("to eat", limit=10):
-    print(entry.headword)
-```
-
-## Example Sentences
-
-Find Example Sentences Containing A Given Text
-
-```python
-for sentence in kb.sentences("日本", limit=5):
-    print(sentence.text)
-    for translation in sentence.translations:
-        print("  ", translation)
-```
-
-## Furigana
-
-View Furigana Segmentation For A Given Word
-
-```python
-for item in kb.furigana("食べる"):
-    print(item.reading, item.segments)
-```
-
-## JLPT
-
-Browse `Tanos JLPT` Study Lists
-
-```python
-level = kb.jlpt_level("勉強")
-
-vocab = kb.jlpt_list("vocab", 5)
-kanji = kb.jlpt_list("kanji", 5)
-grammar = kb.jlpt_list("grammar", 2)
-```
-
-## Stroke Order
-
-Access Stroke Order SVGs
-
-```python
-svg = kb.stroke_svg("春") # (1)!
-raw = kb.stroke_svg("春", raw=True) # (2)!
-if svg is not None:
-    open("haru.svg", "w", encoding="utf-8").write(svg)
-```
-
-1. A Renderable `SVG` Document
-2. The Raw `KanjiVG` fragment
-
-## Audio
-
-Access Pronunciation Audio From The Optional Audio Pack
-
-```python
-clips = kb.audio("語")  # (1)!
-for clip in clips:
-    print(clip.reading, clip.fmt, clip.source, clip.license)
-
-files = kb.audio_bytes("語")  # (2)!
-name, data = files[0]
-
-paths = kb.save_audio("語", "clips")  # (3)!
-```
-
-1. Clip Metadata, Without The Bytes
-2. Each Clip As A `(file_name, bytes)` Pair
-3. Write Every Clip Into `clips/` And Return The Written Paths
-
-???+ warning "Needs The Audio Pack"
-    These Raise `AudioDatabaseNotFoundError` When The Optional Audio Pack Is Not Installed *(`kotobase db pull --with-audio`)*
-
-
-
-## Expanding Tag Codes
-
-Exapand `JMDict` / `JMNedict` Tag Codes To Their Full Descriptions
-
-```python
-labels = kb.expand_tags(["sl", "n", "vs"])
-# {"sl": "slang", "n": "noun (common) (futsuumeishi)", ...}
-```
-
-## Serialization
-
-Every Result Object Can Be Turned Into A Plain Dictionary Or JSON With
-Japanese Text Kept Verbatim
-
-```python
-result = kb.lookup("語")
-data = result.to_dict()
-text = result.to_json()
-for field, value in result:   # iteration yields (field, value) pairs
-    ...
-```
-
-## Database Metadata
-
-```python
-info = kb.db_info()
-print(info["build_date"], info["size_mb"])
-```
-
-## Using Kotobase Concurrently
-
-The Read Layer Is `Thread-Safe`, So An `async` Application Can Run A `lookup` Off
-The Event Loop Without Blocking It
-
-```python
-import asyncio
-
-
-async def main() -> None:
-    result = await asyncio.to_thread(kb.lookup, "日本語")
-    print(result.query)
-
-
-asyncio.run(main())
-```
+    async def lookup(word: str):
+        return await asyncio.to_thread(kb.lookup, word)
+    ```

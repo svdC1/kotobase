@@ -17,7 +17,6 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 from .api import Kotobase
-from .db.connection import AudioDatabaseNotFoundError, DatabaseNotFoundError
 from .db.dtos import (
     AudioDTO,
     FuriganaDTO,
@@ -35,7 +34,17 @@ from .db.dtos import (
     RadicalDTO,
     SenseDTO,
     SentenceDTO,
-    Serializable,
+)
+from .exceptions import (
+    APIError,
+    AudioDatabaseNotFoundError,
+    DatabaseError,
+    DatabaseExistsError,
+    DatabaseNotFoundError,
+    DownloadError,
+    KotobaseError,
+    MalformedSourceError,
+    SourceExtractionError,
 )
 
 try:
@@ -44,9 +53,13 @@ except PackageNotFoundError:
     __version__ = "0.0.0"
 
 __all__ = [
+    "APIError",
     "AudioDTO",
     "AudioDatabaseNotFoundError",
+    "DatabaseError",
+    "DatabaseExistsError",
     "DatabaseNotFoundError",
+    "DownloadError",
     "FuriganaDTO",
     "GlossDTO",
     "JLPTGrammarDTO",
@@ -58,11 +71,13 @@ __all__ = [
     "KanjiDTO",
     "KanjiFormDTO",
     "Kotobase",
+    "KotobaseError",
     "LookupResult",
+    "MalformedSourceError",
     "NameTranslationDTO",
     "RadicalDTO",
     "SenseDTO",
     "SentenceDTO",
-    "Serializable",
+    "SourceExtractionError",
     "__version__",
 ]

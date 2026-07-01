@@ -1,14 +1,5 @@
 name: release
 
-# Builds the sdist and wheel and publishes them to PyPI on a published release,
-# using PyPI Trusted Publishing (OIDC, no API token). Publishing is gated on the
-# quality checks passing.
-#
-# One-time setup:
-#   - Register this repository and the `release.yaml` workflow as a trusted
-#     publisher for the `kotobase` project on PyPI.
-#   - Create a `pypi` environment in the repository settings.
-
 on:
   release:
     types: [published]
@@ -41,6 +32,10 @@ jobs:
 
       - name: Mypy
         run: mypy src/
+
+      - name: PyTest
+        run: pytest --cov=kotobase --cov-report=xml
+
 
   build:
     needs: quality

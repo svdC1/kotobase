@@ -1,9 +1,5 @@
 name: docs
 
-# Publishes the MkDocs site to GitHub Pages on every published release
-# Requires the repository Pages source to be set to "GitHub Actions"
-# (Settings -> Pages -> Build and deployment -> Source).
-
 on:
   release:
     types: [published]

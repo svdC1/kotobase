@@ -35,6 +35,7 @@ from typing import Any
 import zstandard
 from sqlalchemy import create_engine
 
+from ...exceptions import DatabaseExistsError
 from ...terminal_output import (
     THEMED_CONSOLE,
     build_status,
@@ -428,12 +429,12 @@ def build_core(
         The path of the compiled database
 
     Raises:
-        FileExistsError: If a database already exists and `force` is False
+        DatabaseExistsError: If a database already exists and `force` is False
     """
     config.ensure_dirs()
     target = config.db_path()
     if target.exists() and not force:
-        raise FileExistsError(
+        raise DatabaseExistsError(
             f"Database Already Exists At '{target}', Pass Force To Rebuild"
         )
 
@@ -506,12 +507,12 @@ def build_audio(*, force: bool = False) -> Path:
         The path of the compiled audio pack
 
     Raises:
-        FileExistsError: If the pack already exists and `force` is False
+        DatabaseExistsError: If the pack already exists and `force` is False
     """
     config.ensure_dirs()
     pack = config.audio_db_path()
     if pack.exists() and not force:
-        raise FileExistsError(
+        raise DatabaseExistsError(
             f"Audio Pack Database Already Exists At '{pack}', Pass Force To"
             f" Rebuild"
         )

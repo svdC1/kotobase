@@ -5,6 +5,63 @@ All notable changes to this project are documented here
 The format is based on [`Keep a Changelog`](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [`Semantic Versioning`](versioning.md)
 
+## [`0.4.0`](https://github.com/svdC1/kotobase/releases/tag/v0.4.0) - 2026-07-01
+
+Richer data objects, a typed exception hierarchy, and a fix for the audio pull
+
+### Breaking Changes
+
+- `JSON Output Shape` &rarr; The CLI `--json` output now follows `Pydantic`'s
+  `model_dump_json`. Field names are unchanged and Japanese text stays verbatim,
+  but the exact shape may differ from `0.3.0`, which `0.x` SemVer allows
+
+- `DTO Serialization` &rarr; The `Serializable` mixin and its `to_dict` /
+  `to_json` helpers are removed, serialize the `Pydantic` `DTOs` with
+  `model_dump` / `model_dump_json` instead
+
+- `Bad-Argument Errors` &rarr; The `API` now raises `APIError` from the new
+  hierarchy on invalid arguments instead of `ValueError`
+
+### Added
+
+- `Data-Facing DTO Methods` &rarr; The data objects gained pure helpers such as
+  `JMDictEntryDTO.all_pos` / `common_kanji`, `SenseDTO.all_tags` /
+  `expand_tags`, `KanjiDTO.skip_codes` / `is_joyo`, and `LookupResult.has_*`
+
+- `Exception Hierarchy` &rarr; A new
+  [`kotobase.exceptions`][kotobase.exceptions] module rooted at `KotobaseError`
+  *(`DatabaseError`, `SourceExtractionError`, `DownloadError`, `APIError` and
+  their leaves)*, re-exported from the top-level package
+
+- `New API Methods` &rarr; `words_with_kanji`, `sentences_with_kanji` and
+  `resolve_references` *(each accepting a `DTO` or a string)*, plus a `match`
+  argument on `by_radicals` to find kanji containing any of a set of radicals
+  as well as all of them
+
+- `DTO Arguments` &rarr; The key-taking methods now accept a `DTO` as well as a
+  string, reading the lookup key off the object, so a result from one call can
+  be passed straight into another *(e.g. `sentences(entry)`, `stroke_svg(kanji)`)*
+
+- `Test Suite` &rarr; A `pytest` suite run against a tiny fixture database, with
+  coverage reported to `Codecov` across `Python` 3.10 to 3.13
+
+### Changed
+
+- `Pydantic DTOs` &rarr; The data objects are now `Pydantic` models that carry
+  data-facing behaviour and are built with `model_validate` straight from the
+  `ORM` rows
+
+- `Typed Errors` &rarr; Repositories wrap unexpected database failures as
+  `DatabaseError`, and the build pipeline raises `DownloadError` /
+  `SourceExtractionError`. The `CLI` renders any `KotobaseError` as a friendly
+  message instead of a traceback
+
+### Fixed
+
+- `Audio Pull` &rarr; `kotobase db pull` previously rebuilt the audio database
+  locally from the `Kanji Alive` sources instead of pulling the pre-built
+  `kotobase-audio.db.zst` release asset
+
 ## [`0.3.0`](https://github.com/svdC1/kotobase/releases/tag/v0.3.0) - 2026-06-26
 
 A full rewrite of the package, its data and its tooling

@@ -4,12 +4,12 @@
 
 Kotobase follows [`Semantic Versioning`](https://semver.org/)
 
-Security fixes are applied to the latest `0.3.x` release line
+Security fixes are applied to the latest `0.4.x` release line
 
 | Version  | Supported          |
 | -------- | ------------------ |
-| `0.3.x`  | :white_check_mark: |
-| `< 0.3.0`| :x:                |
+| `0.4.x`  | :white_check_mark: |
+| `< 0.4.0`| :x:                |
 
 ## Reporting a Vulnerability
 
@@ -30,6 +30,6 @@ Please include:
 ## What to Expect
 
 - An acknowledgement within **7 days**.
-- An assessment and, where applicable, a fix targeting the next `0.3.x` patch
+- An assessment and, where applicable, a fix targeting the next `0.4.x` patch
   release.
 - Credit in the release notes if you would like to be named.
